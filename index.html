@@ -1,0 +1,219 @@
+
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>MXW01 Web Terminali — Web Bluetooth Üzerinden Çevrimiçi Fiş Yazdırma | Çevrimiçi Termal Yazdırma</title>
+    <meta name="description" content="MXW01, Lefuxin ve ESC/POS termal yazıcılar için ücretsiz çevrimiçi araç.">
+    <meta name="keywords" content="Fiş yazdırma, termal yazıcı, web Bluetooth, mxw01, lefuxin, termal yazıcı, çevrimiçi fiş yazdırma">
+    
+    <link rel="alternate" hreflang="tr" href="siteurl" />
+    <link rel="alternate" hreflang="en" href="siteurl?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="siteurl" />
+
+    <meta property="og:title" content="OpenPrint MXW01 — Termal baskı terminali">
+    <meta property="og:description" content=Fişleri doğrudan tarayıcınızdan yazdırın. İndirimlerden yararlanın, görselleri ve QR kodlarını kullanın.">
+    <meta property="og:type" content="website">
+    
+    <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
+    <link rel="icon" type="image/png" sizes="16x16" href="/assets/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="/assets/favicon-48x48.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="/assets/favicon-64x64.png">
+    <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon-128x128.png">
+    <link rel="icon" type="image/png" sizes="256x256" href="/assets/favicon-256x256.png">
+    <link rel="icon" type="image/svg+xml" href="/assets/favicon.svg">
+    <link rel="apple-touch-icon" sizes="192x192" href="/assets/android-chrome-192x192.png">
+    <link rel="manifest" href="/assets/site.webmanifest">
+    
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    
+    <style>
+        /* Dil değiştirme için minimal stiller */
+        .lang-en { display: none; }
+        body.en-mode .lang-tr { display: none; }
+        body.en-mode .lang-en { display: inline-block; }
+        .lang-switch { font-size: 12px; margin-bottom: 5px; }
+        .lang-switch a { color: #666; text-decoration: none; margin-right: 10px; }
+        .lang-switch a.active { font-weight: bold; color: #000; }
+        .seo-footer { margin-top: 40px; padding: 20px; color: #888; font-size: 13px; line-height: 1.6; border-top: 1px solid #eee; }
+    </style>
+</head>
+<body>
+   
+<header class="app-header card">
+    <div class="header-content">
+        <div class="header-left">
+<h1 class="brand-name">
+    MXW01 <span class="brand-sub">Web Terminal</span>
+    <span class="seo-keywords lang-tr">— çevrimiçi termal baskı</span>
+    <span class="seo-keywords lang-en">— online thermal printing</span>
+</h1>
+            <span class="version-badge">v1.0 Beta</span>
+        </div>
+        
+<div class="header-right">
+    <div class="lang-switch">
+        <a href="?lang=tr" onclick="App.setLanguage('tr');return false;" id="sw-tr" class="active">TR</a>
+        <span class="sep">|</span>
+        <a href="?lang=en" onclick="App.setLanguage('en');return false;" id="sw-en">EN</a>
+    </div>
+         
+</div>
+    </div>
+</header>
+
+<main class="three-column-layout">
+    <section class="card column-editor">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="markdown">Markdown</button>
+            <button class="tab-btn" data-tab="visual">
+                <span class="lang-tr">Resimler</span>
+                <span class="lang-en">Graphics</span>
+            </button>
+        </div>
+        
+        <div id="markdown-tab" class="tab-content">
+            <textarea id="textInput" spellcheck="false" placeholder="">*Merhaba **@MEMONEX3D
+*Alışverişiniz için teşekkürler.
+*Memnun kaldıysanız değerli
+*yorumlarınızı paylaşmanız
+*bizi çok mutlu eder.*** ❤︎
+[C][S:49][W:900]**MEMONEX 3D
+[C][S:35]-0531 208 4897-
+[QR:memonex3d.com|1|275|-1|0|0.46]</textarea>
+            <div class="editor-footer" style="font-size: 12px; color: #666; padding-top: 10px;">
+                <span class="lang-tr">İpucu: Kodlar için [QR:text] kullanın, resimleri önizleme alanına sürükleyin.</span>
+                <span class="lang-en">Hint: use [QR:text] for codes, drag images onto the preview.</span>
+            </div>
+        </div>
+
+        <div id="visual-tab" class="tab-content hidden">
+            <div class="import-tools">
+                <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="App.handleFileSelect(this)">
+                <button onclick="document.getElementById('fileInput').click()">
+                    <span class="lang-tr">📁 Dosya yükle</span>
+                    <span class="lang-en">📁 Upload file</span>
+                </button>
+                <button onclick="App.promptUrl()">
+                    <span class="lang-tr">🔗 Bağlantı URL ile</span>
+                    <span class="lang-en">🔗 By URL</span>
+                </button>
+            </div>
+            <div class="drop-zone" id="dropZone" style="border: 2px dashed #ccc; padding: 40px; text-align: center; margin-top:10px;">
+                <span class="lang-tr">Yapıştırmak için Ctrl+V tuşlarına basın.</span>
+                <span class="lang-en">Press Ctrl+V to paste</span>
+            </div>
+        </div>
+    
+        <div id="imgControls" class="hidden" style="background: #eee; padding: 15px; border-radius: 8px; margin-top: 10px;">
+            <label><input onchange="App.applyImgChanges()" type="checkbox" id="imgMode"> <span class="lang-tr">Akış içinde</span><span class="lang-en">In flow</span></label><br>
+            <label><span class="lang-tr">Ölçek</span><span class="lang-en">Scale</span>: <input oninput="App.applyImgChanges()" type="range" id="imgScale" min="0.1" max="2" step="0.1" value="1"></label><br>
+            <label><span class="lang-tr">Döndür</span><span class="lang-en">Rotate</span>: <input oninput="App.applyImgChanges()" type="range" id="imgRotate" min="0" max="360" step="15" value="0"></label><br>
+            <label><span class="lang-tr">Denge X</span><span class="lang-en">Offset X</span>: <input oninput="App.applyImgChanges()" type="range" id="imgOffset" min="-200" max="200" step="5" value="0"></label><br>
+        </div>
+    </section>
+
+    <section class="card column-preview">
+	<div class="block-header">
+        <span class="lang-tr">Önizleme</span><span class="lang-en">Preview</span>
+        <button class="view-real-btn">📷</button>
+    </div>
+    
+	<div class="canvas-wrapper">
+        <canvas id="mainCanvas"></canvas>
+        <div id="realPhotoOverlay" class="real-photo-overlay hidden">
+            <img src="assets/real_check.jpg" id="realPhotoImg">
+        </div>
+    </div>
+        <button id="printBtn" class="btn-print" disabled><span class="lang-tr">YAZDIR</span><span class="lang-en">PRINT</span></button>
+        <div id="printStatus" class="status-sub"></div>
+    </section>
+
+    <section class="card column-settings">
+        <div class="settings-group">
+            <label><span class="lang-tr">Yazıcı</span><span class="lang-en">Printer</span></label>
+            <select id="driverSelect"></select>
+            <button id="connectBtn" class="btn-connect">
+                <span class="lang-tr">BAĞLANTI</span><span class="lang-en">CONNECT</span>
+            </button>
+            <div id="status" class="status-label">
+                <span class="lang-tr">Durum: Bağlantı kesildi</span><span class="lang-en">Status: Disconnected</span>
+            </div>
+        </div>
+
+        <div class="settings-group params-list">
+            <h4><span class="lang-tr">Ayarlar</span><span class="lang-en">Settings</span></h4>
+<div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
+<input type="range" min="0" max="200" value="100" 
+       oninput="ImageManager.setIntensity(this.value)">
+<span id="intensityVal">100</span>
+</div>
+<div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
+<button onclick="ImageManager.setMode('photo')" class="btn-mode active">📸 Fotoğraf</button>
+<button onclick="ImageManager.setMode('sketch')" class="btn-mode">🎨 Çizim</button>
+</div>
+            <div class="param">
+                <label><span class="lang-tr">Yazı Tipi</span><span class="lang-en">Font</span></label>
+                <select id="fontFamily">
+                    <option value="Arial">Standard (Arial)</option>
+                    <option value="'Courier New', monospace">Typewriter (Courier)</option>
+                    <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                    <option value="'Ubuntu Mono', monospace">Ubuntu Mono</option>
+                </select>
+            </div>
+            <div class="param">
+                <label><span class="lang-tr">Boyut</span><span class="lang-en">Size</span>: <span id="vSize">20</span>px</label>
+                <input type="range" id="fontSize" min="12" max="64" value="20">
+            </div>
+            <div class="param">
+                <label><span class="lang-tr">Kenar boşluğu X</span><span class="lang-en">Margin X</span>: <span id="vOffset">0</span>px</label>
+                <input type="range" id="offsetX" min="0" max="60" value="0">
+            </div>
+            <div class="param">
+                <label><span class="lang-tr">Aralık</span><span class="lang-en">Spacing</span>: <span id="vSpacing">1.1</span></label>
+                <input type="range" id="lineSpacing" min="0.5" max="2.5" step="0.1" value="1.1">
+            </div>
+        </div>
+    </section>
+</main>
+
+<footer class="seo-footer">
+    <div class="lang-tr">
+        <h3>MXW01 Web Terminali projesi hakkında</h3>
+        <p>Bu, Web Bluetooth üzerinden taşınabilir termal yazıcılarla çalışmak için evrensel bir araçtır. MXW01, Lefuxin ve standart ESC/POS protokollerini destekliyoruz. Markdown kullanarak fiş işaretlemeleri oluşturun ve QR kodlarını ve logoları doğrudan tarayıcınızda ekleyin.</p>
+        
+        <h4>Sıkça Sorulan Sorular (SSS):</h4>
+<ul>
+<li><strong>Hangi yazıcılar destekleniyor?</strong> Sistem, Grafik Modunda çalışan taşınabilir 58 mm Bluetooth yazıcılar için tasarlanmıştır. Şu anda MXW01 (MTP-II) ve Lefuxin gibi protokoller için destek onaylanmıştır. Standart ESC/POS desteği deneyseldir.</li>
+<li><strong>Sürücüler gerekli mi?</strong> Hayır. Yazdırma işlemi, Web Bluetooth API aracılığıyla Chrome, Edge veya Opera'dan doğrudan yapılır.</li>
+<li><strong>Bu iOS'ta çalışıyor mu?</strong> iPhone'da standart Safari, Web Bluetooth'u desteklemez. <em>Bluefy</em> tarayıcısını kullanmanızı öneririz.</li>
+<li><strong>Güvenli mi?</strong> Evet, yazdırma işlemi yerel olarak gerçekleşir. Verilerinizi sunucuya göndermiyoruz.</li>
+</ul>
+    </div>
+
+    <div class="lang-en">
+        <h3>About MXW01 Web Terminal</h3>
+        <p>A universal web utility for portable thermal printers via Web Bluetooth API. Supported protocols: MXW01, Lefuxin, and generic ESC/POS. Create receipt layouts using Markdown, insert QR codes, and upload logos directly in your browser.</p>
+        
+        <h4>Frequently Asked Questions (FAQ):</h4>
+        <ul>
+            <li><strong>Which printers are supported?</strong>The system is designed for portable 58mm Bluetooth printers that support direct raster graphics (Graphic Mode). Current implementation includes MXW01 (MTP-II) and Lefuxin protocols. Support for standard ESC/POS is currently experimental.</li>
+            <li><strong>Are drivers required?</strong> No. Printing works directly from Chrome, Edge, or Opera browsers via Web Bluetooth API.</li>
+            <li><strong>Does it work on iOS?</strong> Standard Safari on iPhone doesn't support Web Bluetooth. Use the <em>Bluefy</em> browser instead.</li>
+            <li><strong>Is it secure?</strong> Yes, printing is processed locally. Your data is never sent to our servers.</li>
+        </ul>
+    </div>
+</footer>
+
+<script src="driver.js"></script>
+<script src="renderer.js"></script>
+<script src="imagemanager.js"></script>
+<script src="app.js"></script>
+    
+</body>
+</html>

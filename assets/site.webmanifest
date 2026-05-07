@@ -1,0 +1,23 @@
+{
+    "name": "MXW01 Web Terminal",
+    "short_name": "MXW01",
+    "description": "Profesyonel Web Bluetooth Termal Baskı Aracı",
+    "start_url": "/?utm_source=pwa",
+    "display": "standalone",
+    "background_color": "#f4f4f7",
+    "theme_color": "#007bff",
+    "orientation": "portrait",
+"icons": [
+    {
+        "src": "/assets/android-chrome-192x192.png",
+        "sizes": "192x192",
+        "type": "image/png",
+        "purpose": "any maskable"
+    },
+    {
+        "src": "/assets/favicon-256x256.png", 
+        "sizes": "256x256",
+        "type": "image/png"
+    }
+]
+}
