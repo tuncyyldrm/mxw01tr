@@ -8,107 +8,114 @@ const App = {
         this.bindEvents();
         this.updatePreview(); // Начальный рендер
         this.canvas = document.getElementById('mainCanvas');
-        this.canvas.onmousedown = (e) => {
-            const pt = this.getCanvasPoint(e);
-            
-            const target = ImageManager.findImageAt(pt.x, pt.y);
-            
-            if (target) {
-                this.selectedId = target.id;
-                ImageManager.selectedId = target.id;
+        if (this.canvas) {
+            this.canvas.onmousedown = (e) => {
+                const pt = this.getCanvasPoint(e);
                 
-                this.isDragging = false; 
-                this.dragTarget = target;
-                this.dragTarget.startX = target.x;
-                this.dragTarget.startY = target.y;
+                const target = ImageManager.findImageAt(pt.x, pt.y);
                 
-                // Смещение считаем в единой системе координат холста
-                this.dragOffset = { 
-                    x: pt.x - target.x, 
-                    y: pt.y - target.y 
-                };
-                
-                this.updatePreview();
-                this.syncControls(target);
-                
-                const controls = document.getElementById('imgControls');
-                if (controls) controls.classList.remove('hidden');
+                if (target) {
+                    this.selectedId = target.id;
+                    ImageManager.selectedId = target.id;
+                    
+                    this.isDragging = false; 
+                    this.dragTarget = target;
+                    this.dragTarget.startX = target.x;
+                    this.dragTarget.startY = target.y;
+                    
+                    // Смещение считаем в единой системе координат холста
+                    this.dragOffset = { 
+                        x: pt.x - target.x, 
+                        y: pt.y - target.y 
+                    };
+                    
+                    this.updatePreview();
+                    this.syncControls(target);
+                    
+                    const controls = document.getElementById('imgControls');
+                    if (controls) controls.classList.remove('hidden');
                 } else {
-                this.selectedId = null;
-                ImageManager.selectedId = null;
-                const controls = document.getElementById('imgControls');
-                if (controls) controls.classList.add('hidden');
-                this.updatePreview();
-            }
-        }; 
+                    this.selectedId = null;
+                    ImageManager.selectedId = null;
+                    const controls = document.getElementById('imgControls');
+                    if (controls) controls.classList.add('hidden');
+                    this.updatePreview();
+                }
+            };
+        }
         App.checkUrlLang();
         App.initPhotoPreview();
-        
     },
-            initPhotoPreview() {
-            const btn = document.querySelector('.view-real-btn');
-            const overlay = document.getElementById('realPhotoOverlay');
-            const canvas = document.getElementById('mainCanvas');
+
+    initPhotoPreview() {
+        const btn = document.querySelector('.view-real-btn');
+        const overlay = document.getElementById('realPhotoOverlay');
+        const canvas = document.getElementById('mainCanvas');
+        
+        if (!btn || !overlay || !canvas) return;
+
+        btn.addEventListener('mouseenter', () => {
+            // Подстраиваем размеры оверлея под текущий динамический размер канваса
+            overlay.style.width = `${canvas.offsetWidth}px`;
+            overlay.style.height = `${canvas.offsetHeight}px`;
             
-            btn.addEventListener('mouseenter', () => {
-                // Подстраиваем размеры оверлея под текущий динамический размер канваса
-                const rect = canvas.getBoundingClientRect();
-                const wrapperRect = canvas.parentElement.getBoundingClientRect();
-                
-                overlay.style.width = `${canvas.offsetWidth}px`;
-                overlay.style.height = `${canvas.offsetHeight}px`;
-                
-                // Центрируем относительно wrapper
-                overlay.style.top = `${canvas.offsetTop}px`;
-                overlay.style.left = `${canvas.offsetLeft}px`;
-                
-                overlay.classList.remove('hidden');
-            });
+            // Центрируем относительно wrapper
+            overlay.style.top = `${canvas.offsetTop}px`;
+            overlay.style.left = `${canvas.offsetLeft}px`;
             
-            btn.addEventListener('mouseleave', () => {
-                overlay.classList.add('hidden');
-            });
-        },
-    
-    
+            overlay.classList.remove('hidden');
+        });
+        
+        btn.addEventListener('mouseleave', () => {
+            overlay.classList.add('hidden');
+        });
+    },
+
     fillDrivers() {
         const sel = document.getElementById('driverSelect');
-        if (!sel) return;
+        if (!sel || typeof PrinterRegistry === 'undefined') return;
+        sel.innerHTML = '';
         for (let key in PrinterRegistry) {
             sel.add(new Option(PrinterRegistry[key].name, key));
         }
     },
-    
+
     bindEvents() {
         // 1. Подключение
-        document.getElementById('connectBtn').onclick = async () => {
-            try {
-                const driverKey = document.getElementById('driverSelect').value;
-                this.currentDriver = PrinterRegistry[driverKey].driver;
-                const name = await this.currentDriver.connect();
-                document.getElementById('status').innerText = "🟢 " + name;
-                document.getElementById('printBtn').disabled = false;
+        const connectBtn = document.getElementById('connectBtn');
+        if (connectBtn) {
+            connectBtn.onclick = async () => {
+                try {
+                    const driverKey = document.getElementById('driverSelect').value;
+                    this.currentDriver = PrinterRegistry[driverKey].driver;
+                    const name = await this.currentDriver.connect();
+                    document.getElementById('status').innerText = "🟢 " + name;
+                    document.getElementById('printBtn').disabled = false;
                 } catch (e) { 
-                alert("Bağlantı hatası: " + e.message); 
-            }
-        };
+                    alert("Bağlantı hatası: " + e.message); 
+                }
+            };
+        }
         
         // 2. Печать
-        document.getElementById('printBtn').onclick = async () => {
-            try {
-                const { bytes, height } = Renderer.getBitmapBytes();
-                document.getElementById('printBtn').disabled = true;
-                document.getElementById('printStatus').innerText = "Yazdırılıyor...";
-                
-                await this.currentDriver.print(bytes, height);
-                
-                document.getElementById('printStatus').innerText = "Yazdırmaya hazır";
-                document.getElementById('printBtn').disabled = false;
+        const printBtn = document.getElementById('printBtn');
+        if (printBtn) {
+            printBtn.onclick = async () => {
+                try {
+                    const { bytes, height } = Renderer.getBitmapBytes();
+                    printBtn.disabled = true;
+                    document.getElementById('printStatus').innerText = "Yazdırılıyor...";
+                    
+                    await this.currentDriver.print(bytes, height);
+                    
+                    document.getElementById('printStatus').innerText = "Yazdırmaya hazır";
+                    printBtn.disabled = false;
                 } catch (e) {
-                alert("Yazdırma hatası: " + e.message);
-                document.getElementById('printBtn').disabled = false;
-            }
-        };
+                    alert("Yazdırma hatası: " + e.message);
+                    printBtn.disabled = false;
+                }
+            };
+        }
         
         // 3. Табы
         document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -119,15 +126,17 @@ const App = {
                 btn.classList.add('active');
                 this.activeTab = btn.dataset.tab;
                 const targetTab = document.getElementById(this.activeTab + '-tab');
-                targetTab.classList.remove('hidden');
+                if (targetTab) targetTab.classList.remove('hidden');
                 
-                // --- ВОТ ТУТ ПРАВКА ---
                 if (this.activeTab === 'markdown') {
                     const textarea = document.getElementById('textInput');
-                    // Принудительно "освежаем" текст, чтобы браузер не склеил строки
-                    const currentVal = textarea.value;
-                    textarea.value = ""; 
-                    textarea.value = currentVal;
+                    if (textarea) {
+                        const currentVal = textarea.value;
+                        textarea.value = ""; 
+                        textarea.value = currentVal;
+                    }
+                } else if (this.activeTab === 'cargo') {
+                    this.toggleCargoFields();
                 }
                 
                 this.updatePreview();
@@ -136,13 +145,14 @@ const App = {
         
         // 4. Инпуты и настройки
         ['textInput', 'fontSize', 'lineSpacing', 'offsetX', 'fontFamily'].forEach(id => {
-            document.getElementById(id).oninput = () => this.updatePreview();
+            const el = document.getElementById(id);
+            if (el) el.oninput = () => this.updatePreview();
         });
+
         window.onmousemove = (e) => {
             if (this.dragTarget) {
                 const pt = this.getCanvasPoint(e);
                 
-                // Координаты уже масштабированы
                 const currentX = pt.x - this.dragOffset.x;
                 const currentY = pt.y - this.dragOffset.y;
                 
@@ -156,7 +166,7 @@ const App = {
                     this.dragTarget.y = currentY;
                     
                     this.updateObjectInText(this.dragTarget);
-                    this.syncControls(this.dragTarget); // Передаем сам объект
+                    this.syncControls(this.dragTarget);
                     this.updatePreview();
                 }
             }
@@ -167,255 +177,307 @@ const App = {
             this.dragTarget = null;
         };      
         
-        
-        
         // 5. Вставка картинки
-        //window.onpaste = (e) => this.handlePaste(e);
         window.addEventListener('paste', (e) => {
-            console.log("Global paste event detected!"); // Для отладки в консоли
+            console.log("Global paste event detected!");
             this.handlePaste(e);
         }, true);
-        
-        
-        
-        
     },
-    
+
     handlePaste(e) {
+        if (!e.clipboardData || !e.clipboardData.items) return;
         const item = Array.from(e.clipboardData.items).find(x => x.type.indexOf('image') !== -1);
         if (!item) return;
         
-        e.preventDefault(); // Больше никакого лишнего мусора в тексте
+        e.preventDefault();
         
         const blob = item.getAsFile();
-        // Генерируем ID (можно старый стиль img1, img2 или через время)
-        const imgId = `img${Object.keys(ImageManager.storage).length + 1}`;
+        const imgId = `img${Object.keys(ImageManager.storage || {}).length + 1}`;
         
         console.log("Вставка картинки в текст:", imgId);
         
-        // Используем твой ImageManager.process (ЧБ, ресайз и т.д.)
         ImageManager.process(blob, imgId).then(() => {
-            // 1. Формируем тег для вставки: [IMG:id|mode|x|y|r|s]
-            // По умолчанию: mode=0 (в потоке), x=0, y=0, r=0, s=1.0
             const newTag = `[IMG:${imgId}|0|0|0|0|1.0]`;
-            
-            // 2. Вставляем тег прямо в текст (метод мы написали в прошлом шаге)
             this.insertTagAtCursor(newTag);
-            
-            // 3. Выделяем её сразу (чтобы ползунки подцепились)
             this.selectedId = imgId;
-            
-            // 4. Синхронизируем панель управления
             this.syncControls({ id: imgId, mode: 0, x: 0, y: 0, rotate: 0, scale: 1.0 });
             
             const controls = document.getElementById('imgControls');
             if (controls) controls.classList.remove('hidden');
             
-            // 5. Обновляем всё
             ImageManager.updateUI();
             this.updatePreview(); 
             
             console.log("Картинка интегрирована в документ.");
         });
     },
+
     updatePreview() {
+        const fontSizeEl = document.getElementById('fontSize');
+        const lineSpacingEl = document.getElementById('lineSpacing');
+        const offsetXEl = document.getElementById('offsetX');
+        const fontFamilyEl = document.getElementById('fontFamily');
+        const textInputEl = document.getElementById('textInput');
+
+        if (!fontSizeEl || !lineSpacingEl || !offsetXEl || !fontFamilyEl || !textInputEl) return;
+
         const params = {
-            fontSize: parseInt(document.getElementById('fontSize').value),
-            lineSpacing: parseFloat(document.getElementById('lineSpacing').value),
-            offsetX: parseInt(document.getElementById('offsetX').value),
-            fontFamily: document.getElementById('fontFamily').value
+            fontSize: parseInt(fontSizeEl.value),
+            lineSpacing: parseFloat(lineSpacingEl.value),
+            offsetX: parseInt(offsetXEl.value),
+            fontFamily: fontFamilyEl.value
         };
         
-        Renderer.renderMarkdown(document.getElementById('textInput').value, params);
+        if (typeof Renderer !== 'undefined' && Renderer.renderMarkdown) {
+            Renderer.renderMarkdown(textInputEl.value, params);
+        }
         
-        // Обновляем текстовые индикаторы значений
         document.getElementById('vSize').innerText = params.fontSize;
         document.getElementById('vOffset').innerText = params.offsetX;
         document.getElementById('vSpacing').innerText = params.lineSpacing;
+    },
+
+    applyImgChanges() {
+        if (!this.selectedId) return;
         
+        const isFlow = document.getElementById('imgMode').checked;
+        const s = parseFloat(document.getElementById('imgScale').value);
+        const r = parseInt(document.getElementById('imgRotate').value);
+        const x = parseInt(document.getElementById('imgOffset').value);
         
-    }
-};
-
-App.applyImgChanges = function() {
-    if (!this.selectedId) return;
-    
-    // 1. Собираем данные из UI
-    const isFlow = document.getElementById('imgMode').checked;
-    const s = parseFloat(document.getElementById('imgScale').value);
-    const r = parseInt(document.getElementById('imgRotate').value);
-    const x = parseInt(document.getElementById('imgOffset').value);
-    
-    // 2. Берем текущие координаты, чтобы не потерять Y при переключении
-    const currentPos = Renderer.lastRenderedPositions[this.selectedId];
-    if (!currentPos) return;
-    
-    // 3. Формируем объект. mode теперь зависит от галочки
-    const updatedObj = {
-        id: this.selectedId,
-        mode: isFlow ? 0 : 1, 
-        x: x,
-        y: currentPos.y, // Оставляем как был, Renderer разберется
-        rotate: r,
-        scale: s
-    };
-    
-    // 4. Пишем в текст и обновляем
-    this.updateObjectInText(updatedObj);
-    this.updatePreview();
-};
-
-App.syncControls = function(imgData) {
-    // imgData.mode === 0 означает "В потоке" (true)
-    document.getElementById('imgMode').checked = (imgData.mode === 0);
-    
-    document.getElementById('imgScale').value = imgData.scale || 1.0;
-    document.getElementById('imgRotate').value = imgData.rotate || 0;
-    document.getElementById('imgOffset').value = imgData.x || 0;
-};
-
-App.selectImage = function(id) {
-    // 1. Устанавливаем глобальный ID выбранного элемента
-    this.selectedId = id;
-    ImageManager.selectedId = id;
-    
-    // 2. Ищем данные о положении картинки, которые Renderer сохранил при последней отрисовке
-    const pos = Renderer.lastRenderedPositions[id];
-    
-    if (pos) {
-        // Формируем объект данных в формате, который понимает syncControls
-        const imgData = {
-            id: id,
-            scale: pos.s,
-            rotate: pos.r,
-            x: pos.x,
-            y: pos.y,
-            mode: pos.mode
+        const currentPos = Renderer.lastRenderedPositions ? Renderer.lastRenderedPositions[this.selectedId] : null;
+        if (!currentPos) return;
+        
+        const updatedObj = {
+            id: this.selectedId,
+            mode: isFlow ? 0 : 1, 
+            x: x,
+            y: currentPos.y,
+            rotate: r,
+            scale: s
         };
         
-        this.syncControls(imgData);
-        
-        const controls = document.getElementById('imgControls');
-        if (controls) controls.classList.remove('hidden');
-        } else {
-        // Если картинки нет на холсте (например, тег удален из текста), 
-        // но она есть в галерее — можем просто показать панель со стандартными значениями
-        console.warn("Элемент не найден в текущем документе (в тексте)");
-    }
-    
-    // 3. Обновляем интерфейс
-    ImageManager.updateUI(); // Синяя рамка в галерее
-    this.updatePreview();    // Синяя рамка на холсте
-};
-
-App.detachFromFlow = function(id, newX, newY) {
-    const textarea = document.getElementById('textInput');
-    const regex = new RegExp(`\\[(IMG|QR):${id}\\|0\\|`, 'g'); // Ищем только те, что в моде 0
-    
-    if (textarea.value.match(regex)) {
-        // Меняем 0 (поток) на 1 (полет) и ставим координаты
-        textarea.value = textarea.value.replace(regex, `[$1:${id}|1|${newX}|${newY}|`);
+        this.updateObjectInText(updatedObj);
         this.updatePreview();
-    }
-};
+    },
 
-App.updateObjectInText = function(obj) {
-    const textarea = document.getElementById('textInput');
-    const lines = textarea.value.split('\n');
-    
-    // Ищем строку, которая начинается с [TAG:id
-    const newLines = lines.map(line => {
-        const match = line.match(/^\[(IMG|QR):(.+?)(\]|\|)/);
-        if (match && match[2].trim() === obj.id.replace('qr_', '')) {
-            // Собираем новую строку: [TAG:id|mode|x|y|r|s]
-            return `[${match[1]}:${match[2].trim()}|${obj.mode}|${Math.round(obj.x)}|${Math.round(obj.y)}|${obj.rotate}|${obj.scale}]`;
-        }
-        return line;
-    });
-    
-    textarea.value = newLines.join('\n');
-};
+    syncControls(imgData) {
+        document.getElementById('imgMode').checked = (imgData.mode === 0);
+        document.getElementById('imgScale').value = imgData.scale || 1.0;
+        document.getElementById('imgRotate').value = imgData.rotate || 0;
+        document.getElementById('imgOffset').value = imgData.x || 0;
+    },
 
-App.insertTagAtCursor = function(tag) {
-    const textarea = document.getElementById('textInput');
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    const text = textarea.value;
-    
-    // Вставляем тег и окружаем его переносами строк для чистоты
-    const before = text.substring(0, start);
-    const after = text.substring(end);
-    
-    // Проверяем, нужно ли добавить перенос строки перед/после
-    const prefix = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
-    const suffix = (!after.startsWith('\n')) ? '\n' : '';
-    
-    textarea.value = before + prefix + tag + suffix + after;
-    
-    // Возвращаем фокус и обновляем эскиз
-    textarea.focus();
-    this.updatePreview();
-};
-
-App.handleFileSelect = function(input) {
-    if (input.files && input.files[0]) {
-        ImageManager.importImage(input.files[0]);
-    }
-};
-
-App.promptUrl = function() {
-    const url = prompt("Введите прямой URL картинки:");
-    if (url) {
-        ImageManager.importImage(url);
-    }
-};
-
-
-App.getCanvasPoint = function(e) {
-    const rect = this.canvas.getBoundingClientRect();
-    
-    // Вычисляем масштаб (соотношение внутреннего размера к экранному)
-    const scaleX = this.canvas.width / rect.width;
-    const scaleY = this.canvas.height / rect.height;
-    
-    return {
-        x: (e.clientX - rect.left) * scaleX,
-        y: (e.clientY - rect.top) * scaleY
-    };
-};
-
-App.setLanguage = function(lang, skipHistory = false) {
-    const textarea = document.getElementById('textInput');
-    // 1. Переключаем класс на body для CSS-магии (.lang-tr / .lang-en)
-    if (lang === 'en') {
-        document.body.classList.add('en-mode');
-        document.getElementById('sw-en').classList.add('active');
-        document.getElementById('sw-tr').classList.remove('active');
-        textarea.placeholder = "Example:\n# HEADER\n [IMG:/logowb.jpg] \n [QR: mxw01.ru]..."; // Английский плейсхолдер
+    selectImage(id) {
+        this.selectedId = id;
+        ImageManager.selectedId = id;
+        
+        const pos = Renderer.lastRenderedPositions ? Renderer.lastRenderedPositions[id] : null;
+        
+        if (pos) {
+            const imgData = {
+                id: id,
+                scale: pos.s,
+                rotate: pos.r,
+                x: pos.x,
+                y: pos.y,
+                mode: pos.mode
+            };
+            
+            this.syncControls(imgData);
+            
+            const controls = document.getElementById('imgControls');
+            if (controls) controls.classList.remove('hidden');
         } else {
-        document.body.classList.remove('en-mode');
-        document.getElementById('sw-tr').classList.add('active');
-        document.getElementById('sw-en').classList.remove('active');
-        textarea.placeholder = "Пример:\n# BAŞLIK\n[IMG:/logowb.jpg] \n[QR: mxw01.ru]..."; // Русский плейсхолдер
-    }
-    if (!skipHistory) {
-        const newUrl = lang === 'en' ? '?lang=en' : window.location.pathname;
-        window.history.pushState({ lang: lang }, '', newUrl);
+            console.warn("Элемент не найден в текущем документе (в тексте)");
+        }
+        
+        ImageManager.updateUI();
+        this.updatePreview();
+    },
+
+    detachFromFlow(id, newX, newY) {
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return;
+
+        const rawId = id.replace(/^(qr_|code128_)/, '');
+        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${rawId})\\|0\\|`, 'g');
+
+        if (regex.test(textarea.value)) {
+            const roundedX = Math.round(newX);
+            const roundedY = Math.round(newY);
+            textarea.value = textarea.value.replace(regex, `[$1:${rawId}|1|${roundedX}|${roundedY}|`);
+            this.updatePreview();
+        }
+    },
+
+    updateObjectInText(obj) {
+        const textarea = document.getElementById('textInput');
+        if (!textarea || !obj || !obj.id) return;
+
+        const rawId = obj.id.replace(/^(qr_|code128_)/, '');
+        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${rawId})(?:\\|([^\\]]*))?\\]`, 'g');
+
+        const roundedX = Math.round(obj.x || 0);
+        const roundedY = Math.round(obj.y || 0);
+        const scale = obj.scale !== undefined ? obj.scale : 1.0;
+        const rotate = obj.rotate || 0;
+        const mode = obj.mode !== undefined ? obj.mode : 0;
+
+        const newTag = `[$1:${rawId}|${mode}|${roundedX}|${roundedY}|${rotate}|${scale}]`;
+
+        textarea.value = textarea.value.replace(regex, newTag);
+    },
+
+    insertTagAtCursor(tag) {
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return;
+
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        
+        const before = text.substring(0, start);
+        const after = text.substring(end);
+        
+        const prefix = (before.length > 0 && !before.endsWith('\n')) ? '\n' : '';
+        const suffix = (!after.startsWith('\n')) ? '\n' : '';
+        
+        textarea.value = before + prefix + tag + suffix + after;
+        
+        textarea.focus();
+        this.updatePreview();
+    },
+
+    handleFileSelect(input) {
+        if (input.files && input.files[0]) {
+            ImageManager.importImage(input.files[0]);
+        }
+    },
+
+    promptUrl() {
+        const url = prompt("Введите прямой URL картинки:");
+        if (url) {
+            ImageManager.importImage(url);
+        }
+    },
+
+    getCanvasPoint(e) {
+        if (!this.canvas) return { x: 0, y: 0 };
+        const rect = this.canvas.getBoundingClientRect();
+        
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        
+        return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+        };
+    },
+
+    setLanguage(lang, skipHistory = false) {
+        const textarea = document.getElementById('textInput');
+        if (lang === 'en') {
+            document.body.classList.add('en-mode');
+            const swEn = document.getElementById('sw-en');
+            const swTr = document.getElementById('sw-tr');
+            if (swEn) swEn.classList.add('active');
+            if (swTr) swTr.classList.remove('active');
+            if (textarea) textarea.placeholder = "Example:\n# HEADER\n [IMG:/logowb.jpg] \n [QR: mxw01.ru]...";
+        } else {
+            document.body.classList.remove('en-mode');
+            const swTr = document.getElementById('sw-tr');
+            const swEn = document.getElementById('sw-en');
+            if (swTr) swTr.classList.add('active');
+            if (swEn) swEn.classList.remove('active');
+            if (textarea) textarea.placeholder = "Пример:\n# BAŞLIK\n[IMG:/logowb.jpg] \n[QR: mxw01.ru]...";
+        }
+        if (!skipHistory) {
+            const newUrl = lang === 'en' ? '?lang=en' : window.location.pathname;
+            window.history.pushState({ lang: lang }, '', newUrl);
+        }
+    },
+
+    checkUrlLang() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const lang = urlParams.get('lang');
+        
+        if (lang === 'en') {
+            App.setLanguage('en', true);
+        } else {
+            App.setLanguage('ru', true);
+        }
+    },
+
+    toggleCargoFields() {
+        const typeEl = document.getElementById('cargoLabelType');
+        if (!typeEl) return;
+
+        const type = typeEl.value;
+        const receiverFields = document.getElementById('receiverFieldsGroup');
+        const senderPhoneParam = document.getElementById('senderPhoneParam');
+        const carrierInput = document.getElementById('cargoCarrier');
+
+        if (type === 'code_only') {
+            if (receiverFields) receiverFields.classList.add('hidden-cargo-field');
+            if (senderPhoneParam) senderPhoneParam.classList.add('hidden-cargo-field');
+            if (carrierInput) carrierInput.value = "TRENDYOL GÖNDERİ PAKETİ";
+        } else {
+            if (receiverFields) receiverFields.classList.remove('hidden-cargo-field');
+            if (senderPhoneParam) senderPhoneParam.classList.remove('hidden-cargo-field');
+            if (carrierInput) carrierInput.value = "YURTİÇİ KARGO";
+        }
+    },
+
+    generateCargoLabel() {
+        const type = document.getElementById('cargoLabelType').value;
+        const carrier = document.getElementById('cargoCarrier').value || '';
+        const trackNo = document.getElementById('cargoTrackNo').value || '';
+        const senderName = document.getElementById('cargoSenderName').value || '';
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('tr-TR');
+
+        let tpl = '';
+
+        if (type === 'code_only') {
+            tpl = `[C][S:48][W:900]**${senderName.toUpperCase()}**
+================================
+[C][S:23][W:900]**${carrier.toUpperCase()}**
+================================
+[CODE128:${trackNo}|0|0|0|0|1.2]
+[C][S:26][W:900]**${trackNo}**
+================================
+[C][S:24][W:700]${dateStr}`;
+        } else {
+            const rName = document.getElementById('cargoReceiverName').value || '';
+            const rPhone = document.getElementById('cargoReceiverPhone').value || '';
+            const rAddr = document.getElementById('cargoReceiverAddress').value || '';
+            const sPhone = document.getElementById('cargoSenderPhone').value || '';
+
+            tpl = `[C][S:36][W:900]**${carrier.toUpperCase()}**
+[C][S:22]Takip No: ${trackNo}
+--------------------------------
+[S:22]**ALICI:** ${rName}
+[S:18]Tel: ${rPhone}
+[S:18]Adres: ${rAddr}
+--------------------------------
+[S:18]**GÖNDERİCİ:** 
+${senderName} 
+(${sPhone})
+--------------------------------
+[QR:memonex3d.com|1|251|177|0|0.5]`;
+        }
+
+        const textarea = document.getElementById('textInput');
+        if (textarea) textarea.value = tpl;
+        
+        const markdownTabBtn = document.querySelector('.tab-btn[data-tab="markdown"]');
+        if (markdownTabBtn) markdownTabBtn.click();
+        
+        if (typeof this.updatePreview === 'function') {
+            this.updatePreview();
+        }
     }
 };
-
-App.checkUrlLang = function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const lang = urlParams.get('lang');
-    
-    // Если в URL есть lang=en, включаем английский
-    if (lang === 'en') {
-        App.setLanguage('en',true);
-    } else {
-        // Иначе форсируем русский (или оставляем по умолчанию)
-        App.setLanguage('ru',true);
-    }
-};
-
 
 window.onload = () => App.init();

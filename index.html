@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -14,7 +13,7 @@
     <link rel="alternate" hreflang="x-default" href="siteurl" />
 
     <meta property="og:title" content="OpenPrint MXW01 — Termal baskı terminali">
-    <meta property="og:description" content=Fişleri doğrudan tarayıcınızdan yazdırın. İndirimlerden yararlanın, görselleri ve QR kodlarını kullanın.">
+    <meta property="og:description" content="Fişleri doğrudan tarayıcınızdan yazdırın. İndirimlerden yararlanın, görselleri ve QR kodlarını kullanın.">
     <meta property="og:type" content="website">
     
     <link rel="icon" type="image/x-icon" href="/assets/favicon.ico">
@@ -31,7 +30,7 @@
     <link rel="stylesheet" href="style.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto+Mono&family=Ubuntu+Mono&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <style>
         /* Dil değiştirme için minimal stiller */
         .lang-en { display: none; }
@@ -41,6 +40,9 @@
         .lang-switch a { color: #666; text-decoration: none; margin-right: 10px; }
         .lang-switch a.active { font-weight: bold; color: #000; }
         .seo-footer { margin-top: 40px; padding: 20px; color: #888; font-size: 13px; line-height: 1.6; border-top: 1px solid #eee; }
+        
+        /* Kargo Formu Dinamik Alan Gizleme */
+        .hidden-cargo-field { display: none !important; }
     </style>
 </head>
 <body>
@@ -48,22 +50,21 @@
 <header class="app-header card">
     <div class="header-content">
         <div class="header-left">
-<h1 class="brand-name">
-    MXW01 <span class="brand-sub">Web Terminal</span>
-    <span class="seo-keywords lang-tr">— çevrimiçi termal baskı</span>
-    <span class="seo-keywords lang-en">— online thermal printing</span>
-</h1>
+            <h1 class="brand-name">
+                MXW01 <span class="brand-sub">Web Terminal</span>
+                <span class="seo-keywords lang-tr">— çevrimiçi termal baskı</span>
+                <span class="seo-keywords lang-en">— online thermal printing</span>
+            </h1>
             <span class="version-badge">v1.0 Beta</span>
         </div>
         
-<div class="header-right">
-    <div class="lang-switch">
-        <a href="?lang=tr" onclick="App.setLanguage('tr');return false;" id="sw-tr" class="active">TR</a>
-        <span class="sep">|</span>
-        <a href="?lang=en" onclick="App.setLanguage('en');return false;" id="sw-en">EN</a>
-    </div>
-         
-</div>
+        <div class="header-right">
+            <div class="lang-switch">
+                <a href="?lang=tr" onclick="App.setLanguage('tr');return false;" id="sw-tr" class="active">TR</a>
+                <span class="sep">|</span>
+                <a href="?lang=en" onclick="App.setLanguage('en');return false;" id="sw-en">EN</a>
+            </div>
+        </div>
     </div>
 </header>
 
@@ -71,12 +72,64 @@
     <section class="card column-editor">
         <div class="tabs">
             <button class="tab-btn active" data-tab="markdown">Markdown</button>
+            <button class="tab-btn" data-tab="cargo">
+                <span class="lang-tr">📦 Kargo Etiketi</span>
+                <span class="lang-en">📦 Shipping Label</span>
+            </button>
             <button class="tab-btn" data-tab="visual">
                 <span class="lang-tr">Resimler</span>
                 <span class="lang-en">Graphics</span>
             </button>
         </div>
-        
+
+        <div id="cargo-tab" class="tab-content hidden" style="display: flex; flex-direction: column; gap: 8px;">
+            <div class="param">
+                <label>Etiket Şablon Tipi</label>
+                <select id="cargoLabelType" onchange="App.toggleCargoFields()">
+                    <option value="code_only">⚡ Hızlı Barkod Kodu (Trendyol/Dolap Kargo Etiketi)</option>
+                    <option value="full">📄 Detaylı Şablon (Alıcı / Adresli)</option>
+                </select>
+            </div>
+
+            <div class="param">
+                <label>Kargo Firması / Pazaryeri Adı</label>
+                <input type="text" id="cargoCarrier" value="TRENDYOL GÖNDERİ PAKETİ" placeholder="Örn: TRENDYOL GÖNDERİ PAKETİ, YURTİÇİ KARGO">
+            </div>
+            <div class="param">
+                <label>Takip / Kargo Barkod Kodu</label>
+                <input type="text" id="cargoTrackNo" value="2646659276574893" placeholder="Kargo takip kodu">
+            </div>
+
+            <!-- Detaylı Mod Seçildiğinde Görünecek Alanlar -->
+            <div id="receiverFieldsGroup" class="hidden-cargo-field" style="display: flex; flex-direction: column; gap: 8px;">
+                <hr style="border:0; border-top:1px dashed #ccc; margin: 5px 0;">
+                <h4>Alıcı Bilgileri</h4>
+                <div class="param">
+                    <input type="text" id="cargoReceiverName" placeholder="Alıcı Adı Soyadı" value="Ahmet Yılmaz">
+                </div>
+                <div class="param">
+                    <input type="text" id="cargoReceiverPhone" placeholder="Telefon No" value="0555 123 45 67">
+                </div>
+                <div class="param">
+                    <textarea id="cargoReceiverAddress" rows="2" placeholder="Teslimat Adresi">Atatürk Mah. Cumhuriyet Cad. No:12 D:4 Merkez / Isparta</textarea>
+                </div>
+            </div>
+
+            <hr style="border:0; border-top:1px dashed #ccc; margin: 5px 0;">
+
+            <h4>Gönderici Bilgileri</h4>
+            <div class="param">
+                <input type="text" id="cargoSenderName" placeholder="Gönderici Firma/Ad" value="MEMONEX 3D">
+            </div>
+            <div class="param hidden-cargo-field" id="senderPhoneParam">
+                <input type="text" id="cargoSenderPhone" placeholder="Gönderici Tel" value="0531 208 48 97">
+            </div>
+
+            <button onclick="App.generateCargoLabel()" class="btn-mode" style="background:#007bff; color:white; padding: 10px; margin-top:5px; border:none; border-radius:4px; cursor:pointer;">
+                🚀 Etiketi Şablona Aktar
+            </button>
+        </div>
+
         <div id="markdown-tab" class="tab-content">
             <textarea id="textInput" spellcheck="false" placeholder="">*Merhaba **@MEMONEX3D
 *Alışverişiniz için teşekkürler.
@@ -119,17 +172,17 @@
     </section>
 
     <section class="card column-preview">
-	<div class="block-header">
-        <span class="lang-tr">Önizleme</span><span class="lang-en">Preview</span>
-        <button class="view-real-btn">📷</button>
-    </div>
-    
-	<div class="canvas-wrapper">
-        <canvas id="mainCanvas"></canvas>
-        <div id="realPhotoOverlay" class="real-photo-overlay hidden">
-            <img src="assets/real_check.jpg" id="realPhotoImg">
+        <div class="block-header">
+            <span class="lang-tr">Önizleme</span><span class="lang-en">Preview</span>
+            <button class="view-real-btn">📷</button>
         </div>
-    </div>
+        
+        <div class="canvas-wrapper">
+            <canvas id="mainCanvas"></canvas>
+            <div id="realPhotoOverlay" class="real-photo-overlay hidden">
+                <img src="assets/real_check.jpg" id="realPhotoImg">
+            </div>
+        </div>
         <button id="printBtn" class="btn-print" disabled><span class="lang-tr">YAZDIR</span><span class="lang-en">PRINT</span></button>
         <div id="printStatus" class="status-sub"></div>
     </section>
@@ -148,15 +201,14 @@
 
         <div class="settings-group params-list">
             <h4><span class="lang-tr">Ayarlar</span><span class="lang-en">Settings</span></h4>
-<div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
-<input type="range" min="0" max="200" value="100" 
-       oninput="ImageManager.setIntensity(this.value)">
-<span id="intensityVal">100</span>
-</div>
-<div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
-<button onclick="ImageManager.setMode('photo')" class="btn-mode active">📸 Fotoğraf</button>
-<button onclick="ImageManager.setMode('sketch')" class="btn-mode">🎨 Çizim</button>
-</div>
+            <div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                <input type="range" min="0" max="200" value="100" oninput="ImageManager.setIntensity(this.value)">
+                <span id="intensityVal">100</span>
+            </div>
+            <div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
+                <button onclick="ImageManager.setMode('photo')" class="btn-mode active">📸 Fotoğraf</button>
+                <button onclick="ImageManager.setMode('sketch')" class="btn-mode">🎨 Çizim</button>
+            </div>
             <div class="param">
                 <label><span class="lang-tr">Yazı Tipi</span><span class="lang-en">Font</span></label>
                 <select id="fontFamily">
@@ -188,12 +240,12 @@
         <p>Bu, Web Bluetooth üzerinden taşınabilir termal yazıcılarla çalışmak için evrensel bir araçtır. MXW01, Lefuxin ve standart ESC/POS protokollerini destekliyoruz. Markdown kullanarak fiş işaretlemeleri oluşturun ve QR kodlarını ve logoları doğrudan tarayıcınızda ekleyin.</p>
         
         <h4>Sıkça Sorulan Sorular (SSS):</h4>
-<ul>
-<li><strong>Hangi yazıcılar destekleniyor?</strong> Sistem, Grafik Modunda çalışan taşınabilir 58 mm Bluetooth yazıcılar için tasarlanmıştır. Şu anda MXW01 (MTP-II) ve Lefuxin gibi protokoller için destek onaylanmıştır. Standart ESC/POS desteği deneyseldir.</li>
-<li><strong>Sürücüler gerekli mi?</strong> Hayır. Yazdırma işlemi, Web Bluetooth API aracılığıyla Chrome, Edge veya Opera'dan doğrudan yapılır.</li>
-<li><strong>Bu iOS'ta çalışıyor mu?</strong> iPhone'da standart Safari, Web Bluetooth'u desteklemez. <em>Bluefy</em> tarayıcısını kullanmanızı öneririz.</li>
-<li><strong>Güvenli mi?</strong> Evet, yazdırma işlemi yerel olarak gerçekleşir. Verilerinizi sunucuya göndermiyoruz.</li>
-</ul>
+        <ul>
+            <li><strong>Hangi yazıcılar destekleniyor?</strong> Sistem, Grafik Modunda çalışan taşınabilir 58 mm Bluetooth yazıcılar için tasarlanmıştır. Şu anda MXW01 (MTP-II) ve Lefuxin gibi protokoller için destek onaylanmıştır. Standart ESC/POS desteği deneyseldir.</li>
+            <li><strong>Sürücüler gerekli mi?</strong> Hayır. Yazdırma işlemi, Web Bluetooth API aracılığıyla Chrome, Edge veya Opera'dan doğrudan yapılır.</li>
+            <li><strong>Bu iOS'ta çalışıyor mu?</strong> iPhone'da standart Safari, Web Bluetooth'u desteklemez. <em>Bluefy</em> tarayıcısını kullanmanızı öneririz.</li>
+            <li><strong>Güvenli mi?</strong> Evet, yazdırma işlemi yerel olarak gerçekleşir. Verilerinizi sunucuya göndermiyoruz.</li>
+        </ul>
     </div>
 
     <div class="lang-en">
@@ -214,6 +266,6 @@
 <script src="renderer.js"></script>
 <script src="imagemanager.js"></script>
 <script src="app.js"></script>
-    
+
 </body>
 </html>
