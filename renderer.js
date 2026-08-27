@@ -247,7 +247,13 @@ const Renderer = {
         this.ctx.fillRect(w / 2 - handleSize / 2, h / 2 - handleSize / 2, handleSize, handleSize);
     },
 
-    renderMarkdown(text, params) {
+    
+ async renderMarkdown(text, params) {
+        // Mobil ve masaüstünde fontların tam yüklendiğinden emin olalım
+        if (document.fonts) {
+            await document.fonts.ready;
+        }
+
         this.lastRenderedPositions = {};
         const { fontSize, lineSpacing, offsetX, fontFamily } = params;
         
@@ -282,7 +288,6 @@ const Renderer = {
                     return; 
                 }
 
-                // FIX: CODE128 etiketi regex grubuna eklendi
                 const tagMatch = cleanLine.match(/^\[(IMG|QR|CODE128):(.+?)\]$/);
                 if (tagMatch) {
                     currentY += this.processVisualElement(tagMatch[1], tagMatch[2], currentY, isReal);
@@ -341,7 +346,10 @@ const Renderer = {
                                      .trim();
 
                 const finalSize = lineSize * sizeMult;
-                const fontStack = isMonospace ? 'Consolas, monospace' : `"${this.style.fontFamily}", Arial, sans-serif`;
+                const fontStack = isMonospace 
+                    ? 'Consolas, "Courier New", monospace' 
+                    : `"${this.style.fontFamily}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+                
                 this.ctx.font = `${fontWeight} ${finalSize}px ${fontStack}`;
 
                 const maxWidth = CANVAS_WIDTH - (this.style.offsetX + indent + (boxStartY ? 20 : 10));
@@ -379,7 +387,7 @@ const Renderer = {
 
         if (!this.canvas) return;
 
-        this.canvas.width = CANVAS_WIDTH;
+        this.canvas.width = 384;
         
         // Pas 1: Yükseklik hesapla
         const totalH = drawLoop(false);

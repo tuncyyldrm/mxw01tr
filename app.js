@@ -212,7 +212,7 @@ const App = {
         });
     },
 
-    updatePreview() {
+async updatePreview() {
         const fontSizeEl = document.getElementById('fontSize');
         const lineSpacingEl = document.getElementById('lineSpacing');
         const offsetXEl = document.getElementById('offsetX');
@@ -229,12 +229,16 @@ const App = {
         };
         
         if (typeof Renderer !== 'undefined' && Renderer.renderMarkdown) {
-            Renderer.renderMarkdown(textInputEl.value, params);
+            await Renderer.renderMarkdown(textInputEl.value, params);
         }
         
-        document.getElementById('vSize').innerText = params.fontSize;
-        document.getElementById('vOffset').innerText = params.offsetX;
-        document.getElementById('vSpacing').innerText = params.lineSpacing;
+        const vSizeEl = document.getElementById('vSize');
+        const vOffsetEl = document.getElementById('vOffset');
+        const vSpacingEl = document.getElementById('vSpacing');
+
+        if (vSizeEl) vSizeEl.innerText = params.fontSize;
+        if (vOffsetEl) vOffsetEl.innerText = params.offsetX;
+        if (vSpacingEl) vSpacingEl.innerText = params.lineSpacing;
     },
 
     applyImgChanges() {
