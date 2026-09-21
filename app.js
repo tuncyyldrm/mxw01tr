@@ -448,8 +448,8 @@ async updatePreview() {
 ================================
 [C][S:23][W:900]**${carrier.toUpperCase()}**
 ================================
-[CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.2]
-[C][S:26][W:900]**${trackNo}**
+[CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.5]
+[C][S:35][W:900]**${trackNo}**
 ================================
 [C][S:24][W:700]${dateStr}`;
         } else {
@@ -459,17 +459,19 @@ async updatePreview() {
             const sPhone = document.getElementById('cargoSenderPhone').value || '';
 
             tpl = `[C][S:36][W:900]**${carrier.toUpperCase()}**
-[C][S:22]Takip No: ${trackNo}
---------------------------------
+[C][S:35]${trackNo}
+--------------------------------------------------------
 [S:22]**ALICI:** ${rName}
-[S:18]Tel: ${rPhone}
-[S:18]Adres: ${rAddr}
---------------------------------
-[S:18]**GÖNDERİCİ:** 
-${senderName} 
-(${sPhone})
---------------------------------
-[QR:memonex3d.com|1|251|177|0|0.5]`;
+[S:22]Tel: ${rPhone}
+[S:22]Adres: ${rAddr}
+
+
+--------------------------------------------------------
+[S:30]**GÖNDERİCİ:** 
+[S:30]${senderName} 
+[S:30](${sPhone})
+--------------------------------------------------------
+[QR:memonex3d.com|1|266|246|0|0.48]`;
         }
 
         const textarea = document.getElementById('textInput');
