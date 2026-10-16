@@ -28,7 +28,7 @@ const ImageManager = {
         console.log("Mod Değiştirildi:", mode === 'photo' ? "📸 Fotoğraf" : "🎨 Çizim");
 
         // UI Buton aktiflik durumu
-        document.querySelectorAll('.btn-mode').forEach(btn => {
+        document.querySelectorAll('.mode-selector .btn-mode').forEach(btn => {
             const onclickAttr = btn.getAttribute('onclick') || "";
             btn.classList.toggle('active', onclickAttr.includes(mode));
         });
@@ -151,17 +151,26 @@ const ImageManager = {
     updateUI() {
         const dropZone = document.getElementById('dropZone');
         if (!dropZone) return;
-        let html = '<h3>Grafikleriniz:</h3>';
-        html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px;">';
-        for (let id in this.storage) {
-            const isSelected = (this.selectedId === id);
-            html += `
-                <div onclick="App.selectImage('${id}')" style="border: 2px solid ${isSelected ? '#007bff' : '#eee'}; border-radius: 8px; padding: 10px; cursor: pointer; background: white; position: relative;">
-                    <img src="${this.storage[id].src}" style="width: 100%; height: auto; border-radius: 4px;">
-                    <small style="display: block; text-align: center; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${id}</small>
-                </div>`;
+        const count = Object.keys(this.storage).length;
+        let html = '';
+        if (count > 0) {
+            html += '<div style="margin-bottom: 12px; font-weight: bold; font-size: 13px; color: #555;">' +
+                    '<span class="lang-tr">Yüklenen Grafikler (' + count + '):</span>' +
+                    '<span class="lang-en">Uploaded Graphics (' + count + '):</span></div>';
+            html += '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 12px; margin-bottom: 15px;">';
+            for (let id in this.storage) {
+                const isSelected = (this.selectedId === id);
+                html += `
+                    <div onclick="App.selectImage('${id}')" style="border: 2px solid ${isSelected ? '#007bff' : '#ddd'}; border-radius: 8px; padding: 6px; cursor: pointer; background: white; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                        <img src="${this.storage[id].src}" style="width: 100%; height: auto; border-radius: 4px; display: block;">
+                        <small style="display: block; margin-top: 4px; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #444;">${id}</small>
+                    </div>`;
+            }
+            html += '</div>';
         }
-        html += '</div>';
+        html += '<div style="font-size: 12px; color: #888; border-top: 1px dashed #ccc; padding-top: 10px;">' +
+                '<span class="lang-tr">📂 Resim sürükleyip bırakabilir veya Ctrl+V ile yapıştırabilirsiniz.</span>' +
+                '<span class="lang-en">📂 Drag & drop images here or paste with Ctrl+V.</span></div>';
         dropZone.innerHTML = html;
     },
 
@@ -196,12 +205,38 @@ ImageManager.importImage = async function(source, customId = null) {
     try {
         if (source instanceof File || source instanceof Blob) {
             blob = source;
-        } else {
-            const isExternal = source.startsWith('http');
-            const fetchUrl = isExternal ? `loadimg.php?url=${encodeURIComponent(source)}` : source;
-            const response = await fetch(fetchUrl);
-            if (!response.ok) throw new Error('Yükleme Hatası');
-            blob = await response.blob();
+        } else if (typeof source === 'string') {
+            const isDataUrl = source.startsWith('data:');
+            if (isDataUrl) {
+                const res = await fetch(source);
+                blob = await res.blob();
+            } else {
+                // Doğrudan fetch dene
+                try {
+                    const response = await fetch(source);
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    blob = await response.blob();
+                } catch (fetchErr) {
+                    // CORS engeli veya dosya protokolü için Image nesnesi fallback'i
+                    blob = await new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.crossOrigin = 'anonymous';
+                        img.onload = () => {
+                            const c = document.createElement('canvas');
+                            c.width = img.naturalWidth || img.width;
+                            c.height = img.naturalHeight || img.height;
+                            const ctx = c.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            c.toBlob(b => {
+                                if (b) resolve(b);
+                                else reject(new Error("Canvas blob hatası"));
+                            }, 'image/png');
+                        };
+                        img.onerror = () => reject(new Error("Görsel URL adresinden alınamadı (CORS engeli veya geçersiz bağlantı)"));
+                        img.src = source;
+                    });
+                }
+            }
         }
         
         await this.process(blob, id);
@@ -215,7 +250,8 @@ ImageManager.importImage = async function(source, customId = null) {
         if (typeof App !== 'undefined') App.updatePreview();
         return id;
     } catch (err) { 
-        console.error("İmport hatası:", err); 
+        console.error("Görsel yükleme hatası:", err);
+        alert("Görsel yüklenemedi: " + (err.message || err));
     }
 };
 

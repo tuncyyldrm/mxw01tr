@@ -1,17 +1,20 @@
 const App = {
     currentDriver: null,
     activeTab: 'markdown',
-    lastImage: null, // Сохраняем картинку, чтобы менять отступ без повторной вставки
+    lastImage: null,
+    selectedId: null,
+    isDragging: false,
+    dragTarget: null,
+    dragOffset: { x: 0, y: 0 },
     
     init() {
         this.fillDrivers();
         this.bindEvents();
-        this.updatePreview(); // Начальный рендер
+        this.updatePreview();
         this.canvas = document.getElementById('mainCanvas');
         if (this.canvas) {
             this.canvas.onmousedown = (e) => {
                 const pt = this.getCanvasPoint(e);
-                
                 const target = ImageManager.findImageAt(pt.x, pt.y);
                 
                 if (target) {
@@ -23,7 +26,6 @@ const App = {
                     this.dragTarget.startX = target.x;
                     this.dragTarget.startY = target.y;
                     
-                    // Смещение считаем в единой системе координат холста
                     this.dragOffset = { 
                         x: pt.x - target.x, 
                         y: pt.y - target.y 
@@ -55,14 +57,10 @@ const App = {
         if (!btn || !overlay || !canvas) return;
 
         btn.addEventListener('mouseenter', () => {
-            // Подстраиваем размеры оверлея под текущий динамический размер канваса
             overlay.style.width = `${canvas.offsetWidth}px`;
             overlay.style.height = `${canvas.offsetHeight}px`;
-            
-            // Центрируем относительно wrapper
             overlay.style.top = `${canvas.offsetTop}px`;
             overlay.style.left = `${canvas.offsetLeft}px`;
-            
             overlay.classList.remove('hidden');
         });
         
@@ -80,8 +78,20 @@ const App = {
         }
     },
 
+    onPrinterDisconnected() {
+        const isEn = document.body.classList.contains('en-mode');
+        const statusEl = document.getElementById('status');
+        if (statusEl) {
+            statusEl.innerText = isEn ? "Status: Disconnected" : "Durum: Bağlantı kesildi";
+        }
+        const printBtn = document.getElementById('printBtn');
+        if (printBtn) printBtn.disabled = true;
+        const printStatus = document.getElementById('printStatus');
+        if (printStatus) printStatus.innerText = "";
+    },
+
     bindEvents() {
-        // 1. Подключение
+        // 1. Bağlantı butonu
         const connectBtn = document.getElementById('connectBtn');
         if (connectBtn) {
             connectBtn.onclick = async () => {
@@ -97,7 +107,7 @@ const App = {
             };
         }
         
-        // 2. Печать
+        // 2. Yazdırma butonu
         const printBtn = document.getElementById('printBtn');
         if (printBtn) {
             printBtn.onclick = async () => {
@@ -113,11 +123,12 @@ const App = {
                 } catch (e) {
                     alert("Yazdırma hatası: " + e.message);
                     printBtn.disabled = false;
+                    document.getElementById('printStatus').innerText = "";
                 }
             };
         }
         
-        // 3. Табы
+        // 3. Sekmeler (Tabs)
         document.querySelectorAll('.tab-btn').forEach(btn => {
             btn.onclick = () => {
                 document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -143,7 +154,7 @@ const App = {
             };
         });
         
-        // 4. Инпуты и настройки
+        // 4. Girişler ve parametreler
         ['textInput', 'fontSize', 'lineSpacing', 'offsetX', 'fontFamily'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.oninput = () => this.updatePreview();
@@ -177,11 +188,36 @@ const App = {
             this.dragTarget = null;
         };      
         
-        // 5. Вставка картинки
+        // 5. Pano (Clipboard) üzerinden görsel yapıştırma
         window.addEventListener('paste', (e) => {
-            console.log("Global paste event detected!");
             this.handlePaste(e);
         }, true);
+
+        // 6. Sürükle ve Bırak (Drag & Drop) Desteği
+        window.addEventListener('dragover', (e) => e.preventDefault());
+        window.addEventListener('drop', (e) => e.preventDefault());
+
+        ['mainCanvas', 'dropZone'].forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                el.style.opacity = '0.7';
+            });
+            el.addEventListener('dragleave', () => {
+                el.style.opacity = '1.0';
+            });
+            el.addEventListener('drop', (e) => {
+                e.preventDefault();
+                el.style.opacity = '1.0';
+                if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    const file = e.dataTransfer.files[0];
+                    if (file.type.startsWith('image/')) {
+                        ImageManager.importImage(file);
+                    }
+                }
+            });
+        });
     },
 
     handlePaste(e) {
@@ -194,8 +230,6 @@ const App = {
         const blob = item.getAsFile();
         const imgId = `img${Object.keys(ImageManager.storage || {}).length + 1}`;
         
-        console.log("Вставка картинки в текст:", imgId);
-        
         ImageManager.process(blob, imgId).then(() => {
             const newTag = `[IMG:${imgId}|0|0|0|0|1.0]`;
             this.insertTagAtCursor(newTag);
@@ -207,12 +241,10 @@ const App = {
             
             ImageManager.updateUI();
             this.updatePreview(); 
-            
-            console.log("Картинка интегрирована в документ.");
         });
     },
 
-async updatePreview() {
+    async updatePreview() {
         const fontSizeEl = document.getElementById('fontSize');
         const lineSpacingEl = document.getElementById('lineSpacing');
         const offsetXEl = document.getElementById('offsetX');
@@ -292,12 +324,14 @@ async updatePreview() {
             
             const controls = document.getElementById('imgControls');
             if (controls) controls.classList.remove('hidden');
-        } else {
-            console.warn("Элемент не найден в текущем документе (в тексте)");
         }
         
         ImageManager.updateUI();
         this.updatePreview();
+    },
+
+    escapeRegex(str) {
+        return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     },
 
     detachFromFlow(id, newX, newY) {
@@ -305,7 +339,7 @@ async updatePreview() {
         if (!textarea) return;
 
         const rawId = id.replace(/^(qr_|code128_)/, '');
-        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${rawId})\\|0\\|`, 'g');
+        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${this.escapeRegex(rawId)})\\|0\\|`, 'g');
 
         if (regex.test(textarea.value)) {
             const roundedX = Math.round(newX);
@@ -320,7 +354,7 @@ async updatePreview() {
         if (!textarea || !obj || !obj.id) return;
 
         const rawId = obj.id.replace(/^(qr_|code128_)/, '');
-        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${rawId})(?:\\|([^\\]]*))?\\]`, 'g');
+        const regex = new RegExp(`\\[(IMG|QR|CODE128):(${this.escapeRegex(rawId)})(?:\\|([^\\]]*))?\\]`, 'g');
 
         const roundedX = Math.round(obj.x || 0);
         const roundedY = Math.round(obj.y || 0);
@@ -329,7 +363,6 @@ async updatePreview() {
         const mode = obj.mode !== undefined ? obj.mode : 0;
 
         const newTag = `[$1:${rawId}|${mode}|${roundedX}|${roundedY}|${rotate}|${scale}]`;
-
         textarea.value = textarea.value.replace(regex, newTag);
     },
 
@@ -360,9 +393,11 @@ async updatePreview() {
     },
 
     promptUrl() {
-        const url = prompt("Введите прямой URL картинки:");
-        if (url) {
-            ImageManager.importImage(url);
+        const isEn = document.body.classList.contains('en-mode');
+        const msg = isEn ? "Enter direct image URL (e.g. https://...):" : "Resmin doğrudan URL adresini girin (örn: https://...):";
+        const url = prompt(msg);
+        if (url && url.trim()) {
+            ImageManager.importImage(url.trim());
         }
     },
 
@@ -387,14 +422,14 @@ async updatePreview() {
             const swTr = document.getElementById('sw-tr');
             if (swEn) swEn.classList.add('active');
             if (swTr) swTr.classList.remove('active');
-            if (textarea) textarea.placeholder = "Example:\n# HEADER\n [IMG:/logowb.jpg] \n [QR: mxw01.ru]...";
+            if (textarea) textarea.placeholder = "Example:\n# TITLE\n[IMG:/logo.jpg]\n[QR: https://example.com]...";
         } else {
             document.body.classList.remove('en-mode');
             const swTr = document.getElementById('sw-tr');
             const swEn = document.getElementById('sw-en');
             if (swTr) swTr.classList.add('active');
             if (swEn) swEn.classList.remove('active');
-            if (textarea) textarea.placeholder = "Пример:\n# BAŞLIK\n[IMG:/logowb.jpg] \n[QR: mxw01.ru]...";
+            if (textarea) textarea.placeholder = "Örnek:\n# BAŞLIK\n[IMG:/logo.jpg]\n[QR: https://example.com]...";
         }
         if (!skipHistory) {
             const newUrl = lang === 'en' ? '?lang=en' : window.location.pathname;
@@ -409,7 +444,7 @@ async updatePreview() {
         if (lang === 'en') {
             App.setLanguage('en', true);
         } else {
-            App.setLanguage('ru', true);
+            App.setLanguage('tr', true);
         }
     },
 
@@ -448,7 +483,7 @@ async updatePreview() {
 ================================
 [C][S:23][W:900]**${carrier.toUpperCase()}**
 ================================
-[CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.5]
+[CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.4]
 [C][S:35][W:900]**${trackNo}**
 ================================
 [C][S:24][W:700]${dateStr}`;
@@ -465,13 +500,12 @@ async updatePreview() {
 [S:22]Tel: ${rPhone}
 [S:22]Adres: ${rAddr}
 
-
 --------------------------------------------------------
 [S:30]**GÖNDERİCİ:** 
 [S:30]${senderName} 
 [S:30](${sPhone})
 --------------------------------------------------------
-[QR:memonex3d.com|1|266|246|0|0.48]`;
+[C][QR:memonex3d.com|1|280|227|0|0.4]`;
         }
 
         const textarea = document.getElementById('textInput');

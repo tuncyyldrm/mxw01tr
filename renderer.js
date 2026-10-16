@@ -38,9 +38,9 @@ const Renderer = {
             const qrCanvas = document.createElement('canvas');
             QRCode.toCanvas(qrCanvas, id, { 
                 width: 240,
-                margin: 1,
+                margin: 2,
                 color: { dark: "#000000", light: "#ffffff" },
-                errorCorrectionLevel: 'H'
+                errorCorrectionLevel: 'M'
             }, (err) => {
                 if (err) {
                     delete this._loading[storageId];
@@ -144,7 +144,7 @@ const Renderer = {
 
         if (isReal) {
             this.ctx.save();
-            this.ctx.font = `600 ${this.style.fontSize}px ${this.style.fontFamily}`;
+            this.ctx.font = `600 ${this.style.fontSize}px ${this.style.fontFamily}, sans-serif`;
             this.ctx.imageSmoothingEnabled = false;
 
             columns.forEach((col, index) => {
@@ -174,7 +174,7 @@ const Renderer = {
         return this.style.fontSize * this.style.lineSpacing;
     },
 
-    processVisualElement(type, content, currentY, isReal) {
+    processVisualElement(type, content, currentY, isReal, align = {}) {
         const parts = content.split('|');
         
         const id = parts[0] ? parts[0].trim() : '';
@@ -184,26 +184,44 @@ const Renderer = {
         const rotation = parseInt(parts[4]) || 0;
         const scale = parseFloat(parts[5]) || 1.0;
 
-        const storageId = (type === 'QR') ? `qr_${id}` : ((type === 'CODE128') ? `code128_${id}` : id);
+        const normalizedType = type.toUpperCase();
+        const storageId = (normalizedType === 'QR') ? `qr_${id}` : ((normalizedType === 'CODE128') ? `code128_${id}` : id);
         const imgObj = ImageManager.storage ? ImageManager.storage[storageId] : null;
 
         if (!imgObj) {
-            this.ensureResourceLoaded(type, id, storageId);
-            return mode === 0 ? (type === 'CODE128' ? 70 : 175) : 0;
+            this.ensureResourceLoaded(normalizedType, id, storageId);
+            return mode === 0 ? (normalizedType === 'CODE128' ? 70 : 175) : 0;
         }
 
-        const w = imgObj.width * scale;
-        const h = imgObj.height * scale;
+        let w = imgObj.width * scale;
+        let h = imgObj.height * scale;
+
+        // Kağıt genişliğini (384px) aşmayı önlemek için maksimum 374px'e sığdır
+        const maxPrintWidth = 374;
+        if (w > maxPrintWidth) {
+            const fitFactor = maxPrintWidth / w;
+            w = maxPrintWidth;
+            h = h * fitFactor;
+        }
 
         let centerX, centerY;
 
         if (mode === 1) {
-            centerX = xOffset + w / 2;
-            centerY = yOffset + h / 2;
+            // Kağıt dışına ve negatif koordinatlara taşmayı engelle (en az 5px kenar payı)
+            const safeX = Math.max(5, Math.min(384 - w - 5, xOffset));
+            const safeY = Math.max(5, yOffset);
+            centerX = safeX + w / 2;
+            centerY = safeY + h / 2;
         } else {
-            centerX = (384 / 2) + xOffset; 
+            if (align && align.hasRight) {
+                centerX = 384 - 5 - w / 2 + xOffset;
+            } else {
+                centerX = (384 / 2) + xOffset; 
+            }
             centerY = currentY + h / 2 + yOffset;
         }
+
+        this._maxVisualY = Math.max(this._maxVisualY || 0, centerY + h / 2 + 10);
 
         if (isReal) {
             this.ctx.save();
@@ -273,6 +291,7 @@ const Renderer = {
             let currentY = 5;
             let boxStartY = null;
             let currentBoxType = 'solid';
+            this._maxVisualY = 0;
 
             if (isReal) {
                 this.ctx.imageSmoothingEnabled = false;
@@ -288,9 +307,12 @@ const Renderer = {
                     return; 
                 }
 
-                const tagMatch = cleanLine.match(/^\[(IMG|QR|CODE128):(.+?)\]$/);
+                const hasCenter = /\[C\]/i.test(cleanLine);
+                const hasRight = /\[R\]/i.test(cleanLine);
+                const cleanTagLine = cleanLine.replace(/\[C\]|\[R\]/gi, '').trim();
+                const tagMatch = cleanTagLine.match(/^\[(IMG|QR|CODE128):(.+?)\]$/i);
                 if (tagMatch) {
-                    currentY += this.processVisualElement(tagMatch[1], tagMatch[2], currentY, isReal);
+                    currentY += this.processVisualElement(tagMatch[1].toUpperCase(), tagMatch[2], currentY, isReal, { hasCenter, hasRight });
                     return;
                 }
 
@@ -299,8 +321,12 @@ const Renderer = {
                     return;
                 }
 
-                if (['---', '===', '~~~', '...'].includes(cleanLine)) {
-                    if (isReal) this.drawLine(cleanLine, currentY);
+                // Ayraç çizgileri: '---', '===', '~~~', '...' veya tekrarlayan uzun çizgiler (örn: ====================)
+                if (/^([-=~.])\1{2,}$/.test(cleanLine)) {
+                    const lineType = cleanLine[0] === '-' ? '---' :
+                                     cleanLine[0] === '=' ? '===' :
+                                     cleanLine[0] === '~' ? '~~~' : '...';
+                    if (isReal) this.drawLine(lineType, currentY);
                     currentY += 15; 
                     return;
                 }
@@ -348,7 +374,7 @@ const Renderer = {
                 const finalSize = lineSize * sizeMult;
                 const fontStack = isMonospace 
                     ? 'Consolas, "Courier New", monospace' 
-                    : `"${this.style.fontFamily}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+                    : `${this.style.fontFamily}, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
                 
                 this.ctx.font = `${fontWeight} ${finalSize}px ${fontStack}`;
 
@@ -382,7 +408,7 @@ const Renderer = {
                     currentY += finalSize * this.style.lineSpacing;
                 });
             });
-            return currentY;
+            return Math.max(currentY, this._maxVisualY || 0);
         };
 
         if (!this.canvas) return;
@@ -469,7 +495,15 @@ const Renderer = {
                 activeStyles.italic = !activeStyles.italic;
                 i += 1;
             } else if (text.startsWith('_', i)) {
-                i += 1; 
+                const isMarkdownUnderscore = (i === 0 || text[i-1] === ' ') || (i === text.length - 1 || text[i+1] === ' ');
+                if (isMarkdownUnderscore) {
+                    flush();
+                    activeStyles.italic = !activeStyles.italic;
+                    i += 1;
+                } else {
+                    chunk += '_';
+                    i += 1;
+                }
             } else {
                 chunk += text[i];
                 i++;

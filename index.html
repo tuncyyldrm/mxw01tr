@@ -125,20 +125,22 @@
                 <input type="text" id="cargoSenderPhone" placeholder="Gönderici Tel" value="0531 208 48 97">
             </div>
 
-            <button onclick="App.generateCargoLabel()" class="btn-mode" style="background:#007bff; color:white; padding: 10px; margin-top:5px; border:none; border-radius:4px; cursor:pointer;">
+            <button onclick="App.generateCargoLabel()" class="btn-action" style="background:#007bff; color:white; padding: 10px; margin-top:5px; border:none; border-radius:4px; cursor:pointer;">
                 🚀 Etiketi Şablona Aktar
             </button>
         </div>
 
         <div id="markdown-tab" class="tab-content">
-            <textarea id="textInput" spellcheck="false" placeholder="">*Merhaba **@MEMONEX3D
-*Alışverişiniz için teşekkürler.
-*Memnun kaldıysanız değerli
-*yorumlarınızı paylaşmanız
-*bizi çok mutlu eder.*** ❤︎
-[C][S:49][W:900]**MEMONEX 3D
-[C][S:35]-0531 208 4897-
-[QR:memonex3d.com|1|275|-1|0|0.46]</textarea>
+            <textarea id="textInput" spellcheck="false" placeholder="">[C][S:38][W:900]**MEMONEX 3D**
+================================
+* Alışverişiniz için teşekkürler!
+* Memnun kaldıysanız değerli
+* yorumlarınızı paylaşmanız
+* bizi çok mutlu eder. ❤︎
+--------------------------------
+[C][S:28]- 0531 208 48 97 -
+[C][QR:memonex3d.com|0|0|0|0|0.6]
+[C][S:20]memonex3d.com</textarea>
             <div class="editor-footer" style="font-size: 12px; color: #666; padding-top: 10px;">
                 <span class="lang-tr">İpucu: Kodlar için [QR:text] kullanın, resimleri önizleme alanına sürükleyin.</span>
                 <span class="lang-en">Hint: use [QR:text] for codes, drag images onto the preview.</span>
@@ -201,9 +203,9 @@
 
         <div class="settings-group params-list">
             <h4><span class="lang-tr">Ayarlar</span><span class="lang-en">Settings</span></h4>
-            <div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
+            <div class="param">
+                <label><span class="lang-tr">Baskı Koyu/Yoğunluk</span><span class="lang-en">Darkness/Intensity</span>: <span id="intensityVal">100</span></label>
                 <input type="range" min="0" max="200" value="100" oninput="ImageManager.setIntensity(this.value)">
-                <span id="intensityVal">100</span>
             </div>
             <div class="mode-selector" style="margin-bottom: 15px; display: flex; gap: 10px;">
                 <button onclick="ImageManager.setMode('photo')" class="btn-mode active">📸 Fotoğraf</button>

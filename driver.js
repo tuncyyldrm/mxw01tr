@@ -1,8 +1,5 @@
-// Реальный драйвер MXW01
-// Реальный драйвер MXW01 - Исправленная версия
+// MXW01, Lefuxin ve ESC/POS Termal Yazıcı Sürücüleri
 
-
-// 1. Глобальная функция подключения (максимально близко к твоему оригиналу)
 class LefuxinDriver {
     constructor() {
         this.device = null;
@@ -10,44 +7,61 @@ class LefuxinDriver {
         this.data = null;
     }
 
-    async connect() {
+    async connect(existingDevice = null) {
         try {
-            console.log("Bağlantı başlatılıyor...");
+            console.log("MXW01 / Lefuxin bağlantısı başlatılıyor...");
 
-            // 1. Добавляем твой найденный AE30 в список
-            this.device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [
-'0000ae30-0000-1000-8000-00805f9b34fb', // Твоя новая ревизия
-    '0000ae00-0000-1000-8000-00805f9b34fb', // Классический Lefuxin
-    '0000ff00-0000-1000-8000-00805f9b34fb', // Старые модели
-    '000018f0-0000-1000-8000-00805f9b34fb', // Альтернативный стек
-    '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Broadcom/китайские модули
-    '0000fee7-0000-1000-8000-00805f9b34fb'  // AirSync/WeChat протокол
-                ]
-            });
+            if (existingDevice) {
+                this.device = existingDevice;
+            } else {
+                this.device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [
+                        '0000ae30-0000-1000-8000-00805f9b34fb', // MXW01 ana servis
+                        '0000af30-0000-1000-8000-00805f9b34fb', // Mac / alternatif MXW01 servisi
+                        '0000ae00-0000-1000-8000-00805f9b34fb', // Klasik Lefuxin
+                        '0000ff00-0000-1000-8000-00805f9b34fb', // Eski modeller
+                        '000018f0-0000-1000-8000-00805f9b34fb', // Alternatif yığın
+                        '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Broadcom/Çin modülleri
+                        '0000fee7-0000-1000-8000-00805f9b34fb'  // AirSync protokolü
+                    ]
+                });
+            }
 
-            const server = await this.device.gatt.connect();
+            this.device.ongattserverdisconnected = () => {
+                console.warn("Yazıcı bağlantısı kesildi!");
+                if (typeof App !== 'undefined' && App.onPrinterDisconnected) {
+                    App.onPrinterDisconnected();
+                }
+            };
+
+            const server = (this.device.gatt && this.device.gatt.connected) 
+                ? this.device.gatt 
+                : await this.device.gatt.connect();
             
-            // Даем Windows время "осознать" подключение
+            // BLE GATT stabilizasyon gecikmesi
             await new Promise(r => setTimeout(r, 600));
 
             const services = await server.getPrimaryServices();
-            
             this.ctrl = null;
             this.data = null;
 
-            // 2. Ищем характеристики AE01 и AE03 внутри всех доступных сервисов
+            // AE01/AE03 veya AF01/AF03 kontrol kanallarını ara
             for (let service of services) {
                 try {
-                    console.log("Hizmet anketi:", service.uuid);
-                    const c = await service.getCharacteristic('0000ae01-0000-1000-8000-00805f9b34fb');
-                    const d = await service.getCharacteristic('0000ae03-0000-1000-8000-00805f9b34fb');
+                    let c = null, d = null;
+                    try {
+                        c = await service.getCharacteristic('0000ae01-0000-1000-8000-00805f9b34fb');
+                        d = await service.getCharacteristic('0000ae03-0000-1000-8000-00805f9b34fb');
+                    } catch (e1) {
+                        c = await service.getCharacteristic('0000af01-0000-1000-8000-00805f9b34fb');
+                        d = await service.getCharacteristic('0000af03-0000-1000-8000-00805f9b34fb');
+                    }
                     
                     if (c && d) {
                         this.ctrl = c;
                         this.data = d;
-                        console.log("✅ Serviste bulunan portlar:", service.uuid);
+                        console.log("✅ Yazıcı kontrol kanalları hazır:", service.uuid);
                         return this.device.name || "MXW01 Yazıcı";
                     }
                 } catch (e) {
@@ -55,10 +69,10 @@ class LefuxinDriver {
                 }
             }
 
-            throw new Error("AE30 servis ünitesi bulundu, ancak içindeki AE01/AE03 kontrol kanalları eksik.");
+            throw new Error("Lefuxin/MXW01 kontrol portları (AE01/AE03) bulunamadı.");
 
         } catch (error) {
-            console.error("Sürücü hatası:", error);
+            console.error("Lefuxin sürücü hatası:", error);
             throw error;
         }
     }
@@ -82,13 +96,19 @@ class LefuxinDriver {
             await new Promise(r => setTimeout(r, 50));
         };
 
+        // 1. Baskı başlatma / durum hazırlığı
         await send(0xB1, [0x00]); 
+        
+        // 2. Baskı boyutu bilgisi: yükseklik ve satır genişliği (48 bayt = 384 dot)
         await send(0xA9, [h & 0xFF, (h >> 8) & 0xFF, 48, 0]);
         
+        // 3. Raster görüntü verisini AE03 üzerinden 20 baytlık BLE paketleriyle gönder
         for (let i = 0; i < bytes.length; i += 20) {
             await this.data.writeValueWithoutResponse(bytes.slice(i, i + 20));
             if (i % 400 === 0) await new Promise(r => setTimeout(r, 20));
         }
+        
+        // 4. Veri aktarımını tamamla ve kağıdı ilerlet
         await send(0xAD, [0x00]);
     }
 }
@@ -101,31 +121,41 @@ class ESCPOSDriver {
         this.printerService = null;
     }
 
-    async connect() {
+    async connect(existingDevice = null) {
         try {
-            console.log("ESC/POS özellikli yazıcı arıyorum...");
+            console.log("ESC/POS yazıcı aranıyor...");
             
-            this.device = await navigator.bluetooth.requestDevice({
-                acceptAllDevices: true,
-                optionalServices: [
-                    '000018f0-0000-1000-8000-00805f9b34fb',  // XPrinter
-                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',  // Nordic/Adafruit
-                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',  // Sunmi
-                    '00001101-0000-1000-8000-00805f9b34fb',  // SPP
-                    '00001800-0000-1000-8000-00805f9b34fb'   // Generic Access
-                ]
-            });
+            if (existingDevice) {
+                this.device = existingDevice;
+            } else {
+                this.device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [
+                        '000018f0-0000-1000-8000-00805f9b34fb',  // XPrinter
+                        '49535343-fe7d-4ae5-8fa9-9fafd205e455',  // Nordic/Adafruit
+                        'e7810a71-73ae-499d-8c15-faa9aef0c3f2',  // Sunmi
+                        '00001101-0000-1000-8000-00805f9b34fb',  // Standart SPP
+                        '00001800-0000-1000-8000-00805f9b34fb'   // Generic Access
+                    ]
+                });
+            }
 
-            const server = await this.device.gatt.connect();
+            this.device.ongattserverdisconnected = () => {
+                console.warn("Yazıcı bağlantısı kesildi!");
+                if (typeof App !== 'undefined' && App.onPrinterDisconnected) {
+                    App.onPrinterDisconnected();
+                }
+            };
+
+            const server = (this.device.gatt && this.device.gatt.connected) 
+                ? this.device.gatt 
+                : await this.device.gatt.connect();
             
-            // Попробуем разные сервисы для ESC/POS принтеров
             const services = await server.getPrimaryServices();
             
             for (let service of services) {
                 try {
-                    console.log("Hizmeti kontrol etme:", service.uuid);
-                    
-                    // Вариант 1: Стандартный SPP
+                    // Seçenek 1: SPP portu
                     if (service.uuid === '00001101-0000-1000-8000-00805f9b34fb') {
                         const tx = await service.getCharacteristic('00001101-0000-1000-8000-00805f9b34fb');
                         this.txChar = tx;
@@ -133,7 +163,7 @@ class ESCPOSDriver {
                         break;
                     }
                     
-                    // Вариант 2: Custom сервис для ESC/POS
+                    // Seçenek 2: Özel ISSC servisi
                     const tx = await service.getCharacteristic('49535343-8841-43f4-a8d4-ecbe34729bb3');
                     const rx = await service.getCharacteristic('49535343-1e4d-4bd9-ba61-23c647249616');
                     
@@ -149,7 +179,7 @@ class ESCPOSDriver {
             }
 
             if (!this.txChar) {
-                throw new Error("ESC/POS yazıcı için herhangi bir özellik bulunamadı.");
+                throw new Error("ESC/POS yazıcı yazdırma kanalı bulunamadı.");
             }
 
             return this.device.name || "ESC/POS Yazıcı";
@@ -161,17 +191,14 @@ class ESCPOSDriver {
     }
 
     async initializePrinter() {
-        // Инициализация ESC/POS принтера
         const initCommands = new Uint8Array([
-            0x1B, 0x40, // Initialize
-            0x1B, 0x4D, 0x00, // Select font A
-            0x1B, 0x33, 0x00, // Set line spacing
-            0x1D, 0x21, 0x00, // Cancel character size
-            0x1B, 0x45, 0x00  // Cancel bold
+            0x1B, 0x40,       // ESC @ (Yazıcıyı sıfırla)
+            0x1B, 0x4D, 0x00, // Font A seç
+            0x1B, 0x33, 0x00  // Satır aralığını sıfırla
         ]);
         
         await this.txChar.writeValueWithoutResponse(initCommands);
-        await new Promise(r => setTimeout(r, 200));
+        await new Promise(r => setTimeout(r, 150));
     }
 
     async print(bytes, h) {
@@ -179,23 +206,32 @@ class ESCPOSDriver {
         
         await this.initializePrinter();
         
-        // Установка плотности печати (если требуется)
-        if (h > 0) {
-            const densityCmd = new Uint8Array([
-                0x1D, 0x28, 0x4B, 0x02, 0x00, 0x30, h & 0xFF, (h >> 8) & 0xFF
-            ]);
-            await this.txChar.writeValueWithoutResponse(densityCmd);
+        // ESC/POS için bit sırasını MSB-first formatına çevir (Bit 7 = Sol piksel)
+        const reversedBytes = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) {
+            let b = bytes[i];
+            reversedBytes[i] = ((b * 0x0802 & 0x22110) | (b * 0x8020 & 0x88440)) * 0x10101 >> 16 & 0xFF;
+        }
+
+        // GS v 0 (0x1D, 0x76, 0x30, m, xL, xH, yL, yH) - Raster Bit Image komutu
+        // m = 0 (Normal mod), xL = 48 (384 / 8 = 48 bayt genişlik), xH = 0
+        const rasterCmd = new Uint8Array([
+            0x1D, 0x76, 0x30, 0x00,
+            48, 0x00,
+            h & 0xFF, (h >> 8) & 0xFF
+        ]);
+        await this.txChar.writeValueWithoutResponse(rasterCmd);
+        await new Promise(r => setTimeout(r, 50));
+        
+        // 20 baytlık paketlerle veriyi yazıcıya ilet
+        for (let i = 0; i < reversedBytes.length; i += 20) {
+            await this.txChar.writeValueWithoutResponse(reversedBytes.slice(i, Math.min(i + 20, reversedBytes.length)));
+            if (i % 200 === 0) await new Promise(r => setTimeout(r, 20));
         }
         
-        // Отправка данных по 20 байт (стандартный MTU)
-        for (let i = 0; i < bytes.length; i += 20) {
-            await this.txChar.writeValueWithoutResponse(bytes.slice(i, Math.min(i + 20, bytes.length)));
-            if (i % 100 === 0) await new Promise(r => setTimeout(r, 10));
-        }
-        
-        // Команда завершения печати
-        const finishCmd = new Uint8Array([0x1D, 0x56, 0x42, 0x00]); // Cut paper
-        await this.txChar.writeValueWithoutResponse(finishCmd);
+        // 3 satır besleme
+        const feedCmd = new Uint8Array([0x1B, 0x64, 0x03]);
+        await this.txChar.writeValueWithoutResponse(feedCmd);
     }
 }
 
@@ -207,43 +243,46 @@ class BLEProtocolDriver {
         this.fragmentSize = 512;
     }
 
-    async connect() {
+    async connect(existingDevice = null) {
         try {
-            console.log("BLE seri bağlantı noktasına sahip bir yazıcı arıyorum...");
+            console.log("BLE Seri bağlantı noktasına sahip yazıcı aranıyor...");
             
-            this.device = await navigator.bluetooth.requestDevice({
-                filters: [{ namePrefix: 'HMSoft' }, { namePrefix: 'ZH03' }, { namePrefix: 'BLE' }],
-                optionalServices: [
-                    '0000ff00-0000-1000-8000-00805f9b34fb',  // Serial data
-                    '0000ff01-0000-1000-8000-00805f9b34fb',  // Serial control
-                    '6e400001-b5a3-f393-e0a9-e50e24dcca9e',  // Nordic UART
-                    '0000fee7-0000-1000-8000-00805f9b34fb'   // Apple Continuity
-                ]
-            });
+            if (existingDevice) {
+                this.device = existingDevice;
+            } else {
+                this.device = await navigator.bluetooth.requestDevice({
+                    filters: [{ namePrefix: 'HMSoft' }, { namePrefix: 'ZH03' }, { namePrefix: 'BLE' }],
+                    optionalServices: [
+                        '0000ff00-0000-1000-8000-00805f9b34fb',  // Seri veri
+                        '0000ff01-0000-1000-8000-00805f9b34fb',  // Seri kontrol
+                        '6e400001-b5a3-f393-e0a9-e50e24dcca9e',  // Nordic UART
+                        '0000fee7-0000-1000-8000-00805f9b34fb'   // Apple Continuity
+                    ]
+                });
+            }
 
-            const server = await this.device.gatt.connect();
+            this.device.ongattserverdisconnected = () => {
+                console.warn("Yazıcı bağlantısı kesildi!");
+                if (typeof App !== 'undefined' && App.onPrinterDisconnected) {
+                    App.onPrinterDisconnected();
+                }
+            };
+
+            const server = (this.device.gatt && this.device.gatt.connected) 
+                ? this.device.gatt 
+                : await this.device.gatt.connect();
             
-            // Проверяем разные сервисы
             try {
-                // 1. Попробуем HMSoft/ZH03 сервис
                 const service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
                 this.txChar = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
                 this.rxChar = await service.getCharacteristic('0000ff01-0000-1000-8000-00805f9b34fb');
             } catch (e) {
-                // 2. Попробуем Nordic UART
-                try {
-                    const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
-                    this.txChar = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
-                    this.rxChar = await service.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
-                } catch (e2) {
-                    throw new Error("Desteklenen BLE Seri servis bulunamadı.");
-                }
+                const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+                this.txChar = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+                this.rxChar = await service.getCharacteristic('6e400003-b5a3-f393-e0a9-e50e24dcca9e');
             }
 
-            // Настройка размера фрагмента
-            const mtu = (await server.getPrimaryService('generic_access')).getCharacteristic('gap.device_name');
-            this.fragmentSize = 512; // Стандартный MTU для BLE
-            
+            this.fragmentSize = 512;
             return this.device.name || "BLE Seri Yazıcı";
             
         } catch (error) {
@@ -255,31 +294,37 @@ class BLEProtocolDriver {
     async _sendCommand(cmd) {
         if (!this.txChar) throw new Error("Yazıcı bağlı değil.");
         
-        // Разбиваем команду на фрагменты
         for (let i = 0; i < cmd.length; i += this.fragmentSize) {
             const fragment = cmd.slice(i, i + this.fragmentSize);
             await this.txChar.writeValueWithoutResponse(fragment);
-            await new Promise(r => setTimeout(r, 20)); // Задержка между пакетами
+            await new Promise(r => setTimeout(r, 20));
         }
     }
 
     async print(bytes, h) {
-        // Отправка команды инициализации
+        // Sıfırlama
         const initCmd = new Uint8Array([0x1B, 0x40]);
         await this._sendCommand(initCmd);
         
-        // Настройка параметров печати
-        if (h > 0) {
-            const densityCmd = new Uint8Array([0x1D, 0x76, 0x30, 0x00, h & 0xFF, (h >> 8) & 0xFF]);
-            await this._sendCommand(densityCmd);
+        // Bit sırasını MSB'ye çevir
+        const reversedBytes = new Uint8Array(bytes.length);
+        for (let i = 0; i < bytes.length; i++) {
+            let b = bytes[i];
+            reversedBytes[i] = ((b * 0x0802 & 0x22110) | (b * 0x8020 & 0x88440)) * 0x10101 >> 16 & 0xFF;
         }
+
+        // GS v 0 raster komutu: 48 bayt genişlik, h yükseklik
+        const rasterCmd = new Uint8Array([
+            0x1D, 0x76, 0x30, 0x00,
+            48, 0x00,
+            h & 0xFF, (h >> 8) & 0xFF
+        ]);
+        await this._sendCommand(rasterCmd);
+        await this._sendCommand(reversedBytes);
         
-        // Отправка данных
-        await this._sendCommand(bytes);
-        
-        // Команда отрезания бумаги
-        const cutCmd = new Uint8Array([0x1D, 0x56, 0x42, 0x00]);
-        await this._sendCommand(cutCmd);
+        // 3 satır besleme
+        const feedCmd = new Uint8Array([0x1B, 0x64, 0x03]);
+        await this._sendCommand(feedCmd);
     }
 }
 
@@ -296,12 +341,12 @@ class UniversalPrinterDriver {
 
     async connect() {
         try {
-            console.log("Yazıcıyı otomatik olarak algıla...");
+            console.log("Yazıcı otomatik olarak algılanıyor...");
             
-            // Запрашиваем все возможные сервисы
             const allServices = [
-                // Lefuxin
+                // Lefuxin / MXW01
                 '0000ae30-0000-1000-8000-00805f9b34fb',
+                '0000af30-0000-1000-8000-00805f9b34fb',
                 '0000ae00-0000-1000-8000-00805f9b34fb',
                 // ESC/POS
                 '000018f0-0000-1000-8000-00805f9b34fb',
@@ -317,35 +362,35 @@ class UniversalPrinterDriver {
             });
 
             const server = await this.device.gatt.connect();
-            
-            // Определяем тип принтера по доступным сервисам
             const services = await server.getPrimaryServices();
-            const serviceUUIDs = services.map(s => s.uuid);
+            const serviceUUIDs = services.map(s => s.uuid.toLowerCase());
             
-            console.log("Bulunan hizmetler:", serviceUUIDs);
+            console.log("Bulunan servisler:", serviceUUIDs);
             
-            // Логика определения
+            // Servislere göre doğru alt sürücüyü seç
             if (serviceUUIDs.includes('0000ae30-0000-1000-8000-00805f9b34fb') ||
+                serviceUUIDs.includes('0000af30-0000-1000-8000-00805f9b34fb') ||
                 serviceUUIDs.includes('0000ae00-0000-1000-8000-00805f9b34fb')) {
                 this.driver = this.drivers.lefuxin;
-                console.log("Tanımı: Lefuxin/MXW01");
+                console.log("Algılanan protokol: Lefuxin / MXW01");
             } else if (serviceUUIDs.includes('49535343-fe7d-4ae5-8fa9-9fafd205e455') ||
                       serviceUUIDs.includes('000018f0-0000-1000-8000-00805f9b34fb')) {
                 this.driver = this.drivers.escpos;
-                console.log("Tanımı: ESC/POS");
+                console.log("Algılanan protokol: ESC/POS");
             } else if (serviceUUIDs.includes('0000ff00-0000-1000-8000-00805f9b34fb') ||
                       serviceUUIDs.includes('6e400001-b5a3-f393-e0a9-e50e24dcca9e')) {
                 this.driver = this.drivers.bleserial;
-                console.log("Tanımı: BLE Serial");
+                console.log("Algılanan protokol: BLE Serial");
             } else {
-                throw new Error("Yazıcı türü belirtilmemiş.");
+                // Varsayılan olarak Lefuxin dene
+                this.driver = this.drivers.lefuxin;
             }
             
-            // Используем выбранный драйвер
-            return await this.driver.connect();
+            // Kullanıcıya tekrar pencere açmadan mevcut bağlantıyı alt sürücüye aktar
+            return await this.driver.connect(this.device);
             
         } catch (error) {
-            console.error("Genel Sürücü Hatası:", error);
+            console.error("Evrensel sürücü hatası:", error);
             throw error;
         }
     }
@@ -356,33 +401,23 @@ class UniversalPrinterDriver {
     }
 }
 
-
-
-
-// ФЕЙКОВЫЙ ДРАЙВЕР ДЛЯ ТЕСТОВ
+// Sanal / Simülasyon Sürücüsü (Testler için)
 class FakeDriver {
     async connect() {
         return new Promise((resolve) => {
-            setTimeout(() => resolve("Sanal Hata Ayıklama Yazıcısı"), 1000); // Имитируем поиск 1 сек
+            setTimeout(() => resolve("Sanal Hata Ayıklama Yazıcısı (Test)"), 800);
         });
     }
 
     async print(bytes, h) {
-        console.log(`[FakePrint] Yazdırma işlemi başlatılıyor. Yükseklik: ${h}px, Bayt: ${bytes.length}`);
+        console.log(`[FakePrint] Yazdırma işlemi başlatıldı. Yükseklik: ${h}px, Boyut: ${bytes.length} bayt`);
         for (let i = 0; i <= 100; i += 20) {
-            console.log(`[FakePrint] İlerlemek: ${i}%`);
-            await new Promise(r => setTimeout(r, 200)); // Имитируем жужжание принтера
+            console.log(`[FakePrint] İlerleme: %${i}`);
+            await new Promise(r => setTimeout(r, 150));
         }
-        console.log("[FakePrint] Yazdırma işlemi tamamlandı!");
+        console.log("[FakePrint] Yazdırma başarıyla tamamlandı!");
     }
 }
-
-// Реестр принтеров
-/*const PrinterRegistry = {
-    "mxw01": { name: "MXW01 / Lefuxin (Реальный)", driver: new LefuxinDriver() },
-    "fake": { name: "Эмулятор (Для тестов)", driver: new FakeDriver() }
-};
-*/
 
 const PrinterRegistry = {
     "mxw01": { 
