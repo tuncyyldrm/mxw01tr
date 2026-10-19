@@ -6,11 +6,16 @@ const App = {
     isDragging: false,
     dragTarget: null,
     dragOffset: { x: 0, y: 0 },
+    orientation: 'portrait',
+    landscapeWidth: 576,
+    rotationAngle: 0,
     
     init() {
         this.loadDraft();
+        this.loadOrientationSettings();
         this.fillDrivers();
         this.bindEvents();
+        this.updateOrientationUI();
         this.updatePreview();
         this.canvas = document.getElementById('mainCanvas');
         if (this.canvas) {
@@ -166,7 +171,8 @@ const App = {
                 try {
                     const copiesEl = document.getElementById('printCopies');
                     const copies = copiesEl ? Math.max(1, parseInt(copiesEl.value) || 1) : 1;
-                    const { bytes, height } = Renderer.getBitmapBytes();
+                    const rotationAngle = this.getEffectiveRotation();
+                    const { bytes, height } = Renderer.getBitmapBytes(rotationAngle);
                     const isEn = document.body.classList.contains('en-mode');
                     printBtn.disabled = true;
 
@@ -361,11 +367,18 @@ const App = {
             lineSpacing: parseFloat(lineSpacingEl.value),
             offsetX: parseInt(offsetXEl.value),
             fontFamily: fontFamilyEl.value,
-            bottomMargin: bMargin
+            bottomMargin: bMargin,
+            orientation: this.orientation || 'portrait',
+            landscapeWidth: this.landscapeWidth || 576
         };
         
         if (typeof Renderer !== 'undefined' && Renderer.renderMarkdown) {
             await Renderer.renderMarkdown(textInputEl.value, params);
+        }
+
+        const tearEdge = document.querySelector('.paper-tear-edge');
+        if (tearEdge && Renderer.canvas) {
+            tearEdge.style.setProperty('--tear-width', `${Renderer.canvas.width}px`);
         }
         
         const vSizeEl = document.getElementById('vSize');
@@ -785,20 +798,174 @@ const App = {
         }
     },
 
+    loadOrientationSettings() {
+        try {
+            const savedOrient = localStorage.getItem('mxw01_orientation');
+            if (savedOrient === 'landscape' || savedOrient === 'portrait') {
+                this.orientation = savedOrient;
+            }
+            const savedWidth = localStorage.getItem('mxw01_landscape_width');
+            if (savedWidth) {
+                const w = parseInt(savedWidth);
+                if (w >= 384 && w <= 1200) {
+                    this.landscapeWidth = w;
+                }
+            }
+            const savedRot = localStorage.getItem('mxw01_rotation_angle');
+            if (savedRot !== null) {
+                const r = parseInt(savedRot);
+                if ([0, 90, 180, 270].includes(r)) {
+                    this.rotationAngle = r;
+                }
+            } else {
+                this.rotationAngle = (this.orientation === 'landscape') ? 90 : 0;
+            }
+        } catch (e) {}
+    },
+
+    setOrientation(mode) {
+        this.orientation = (mode === 'landscape') ? 'landscape' : 'portrait';
+        if (this.orientation === 'landscape') {
+            if (this.rotationAngle !== 90 && this.rotationAngle !== 270) {
+                this.rotationAngle = 90;
+            }
+        } else {
+            if (this.rotationAngle !== 0 && this.rotationAngle !== 180) {
+                this.rotationAngle = 0;
+            }
+        }
+        try {
+            localStorage.setItem('mxw01_orientation', this.orientation);
+            localStorage.setItem('mxw01_rotation_angle', this.rotationAngle);
+        } catch (e) {}
+
+        this.updateOrientationUI();
+        this.updatePreview();
+    },
+
+    setLandscapeWidth(w) {
+        const width = Math.max(384, Math.min(1200, parseInt(w) || 576));
+        this.landscapeWidth = width;
+        try {
+            localStorage.setItem('mxw01_landscape_width', width);
+        } catch (e) {}
+
+        const slider = document.getElementById('landscapeWidth');
+        if (slider) slider.value = width;
+
+        this.updateOrientationUI();
+        this.updatePreview();
+    },
+
+    onLandscapeWidthChange(val) {
+        this.setLandscapeWidth(val);
+    },
+
+    setRotation(angle) {
+        const a = parseInt(angle) || 0;
+        this.rotationAngle = a;
+        try {
+            localStorage.setItem('mxw01_rotation_angle', a);
+        } catch (e) {}
+
+        if ((a === 90 || a === 270) && this.orientation !== 'landscape') {
+            this.setOrientation('landscape');
+            return;
+        } else if ((a === 0 || a === 180) && this.orientation !== 'portrait') {
+            this.setOrientation('portrait');
+            return;
+        }
+
+        this.updateOrientationUI();
+    },
+
+    getEffectiveRotation() {
+        if (this.orientation === 'landscape') {
+            return (this.rotationAngle === 270) ? 270 : 90;
+        } else {
+            return (this.rotationAngle === 180) ? 180 : 0;
+        }
+    },
+
+    updateOrientationUI() {
+        const isLandscape = (this.orientation === 'landscape');
+
+        // Ayarlar sütunu butonları
+        const btnPortrait = document.getElementById('btnOrientPortrait');
+        const btnLandscape = document.getElementById('btnOrientLandscape');
+        if (btnPortrait) btnPortrait.classList.toggle('active', !isLandscape);
+        if (btnLandscape) btnLandscape.classList.toggle('active', isLandscape);
+
+        // Önizleme başlığı hızlı butonları
+        const qPortrait = document.getElementById('quickOrientPortrait');
+        const qLandscape = document.getElementById('quickOrientLandscape');
+        if (qPortrait) qPortrait.classList.toggle('active', !isLandscape);
+        if (qLandscape) qLandscape.classList.toggle('active', isLandscape);
+
+        // Yatay ayar grubu
+        const lGroup = document.getElementById('landscapeSettingsGroup');
+        if (lGroup) {
+            if (isLandscape) {
+                lGroup.classList.remove('hidden');
+            } else {
+                lGroup.classList.add('hidden');
+            }
+        }
+
+        // Değer etiketleri ve slider
+        const vWidth = document.getElementById('vLandscapeWidth');
+        const vCm = document.getElementById('vLandscapeCm');
+        const slider = document.getElementById('landscapeWidth');
+        if (vWidth) vWidth.innerText = this.landscapeWidth;
+        if (vCm) vCm.innerText = ((this.landscapeWidth / 8) / 10).toFixed(1);
+        if (slider) slider.value = this.landscapeWidth;
+
+        // Preset butonları aktifliği
+        document.querySelectorAll('.landscape-presets .btn-preset').forEach(btn => {
+            const btnW = parseInt(btn.dataset.w) || parseInt(btn.innerText);
+            btn.classList.toggle('active', btnW === this.landscapeWidth);
+        });
+
+        // Döndürme açısı seçimi
+        const rotSelect = document.getElementById('rotationAngle');
+        if (rotSelect) {
+            rotSelect.value = String(this.rotationAngle);
+        }
+
+        // Kağıt yırtma kenarı genişliğini canvas ile senkronize et
+        const tearEdge = document.querySelector('.paper-tear-edge');
+        if (tearEdge) {
+            const tearWidth = isLandscape ? `${this.landscapeWidth}px` : '384px';
+            tearEdge.style.setProperty('--tear-width', tearWidth);
+        }
+    },
+
     updatePaperMetrics() {
         const canvas = document.getElementById('mainCanvas');
         if (!canvas) return;
+        const w = canvas.width;
         const h = canvas.height;
-        const cm = (h / 80).toFixed(1);
-        const sec = (h / 350).toFixed(1);
+        const isEn = document.body.classList.contains('en-mode');
+        const isLandscape = (this.orientation === 'landscape');
+
+        // Termal rulo tüketimi: Dikeyde h piksel beslenir, yatayda 90° çevrildiği için w piksel beslenir
+        const rollDots = isLandscape ? w : h;
+        const cm = (rollDots / 80).toFixed(1);
+        const sec = (rollDots / 350).toFixed(1);
         
         const mLength = document.getElementById('metricLength');
         const mTime = document.getElementById('metricTime');
         const mDots = document.getElementById('metricDots');
         
         if (mLength) mLength.innerText = `📏 ~${cm} cm`;
-        if (mTime) mTime.innerText = `⏱️ ~${sec} sn`;
-        if (mDots) mDots.innerText = `384×${h} px`;
+        if (mTime) mTime.innerText = isEn ? `⏱️ ~${sec} s` : `⏱️ ~${sec} sn`;
+        if (mDots) {
+            if (isLandscape) {
+                mDots.innerText = isEn ? `${w}×${h} px (Landscape)` : `${w}×${h} px (Yatay)`;
+            } else {
+                mDots.innerText = `${w}×${h} px`;
+            }
+        }
     },
 
     saveDraft() {
@@ -865,7 +1032,8 @@ const App = {
         if (!canvas) return;
         const now = new Date();
         const pad = (n) => String(n).padStart(2, '0');
-        const filename = `termal_fis_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.png`;
+        const orientTag = (this.orientation === 'landscape') ? 'yatay' : 'dikey';
+        const filename = `termal_fis_${orientTag}_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.png`;
 
         const link = document.createElement('a');
         link.download = filename;

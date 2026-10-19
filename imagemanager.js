@@ -59,7 +59,7 @@ const ImageManager = {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
-                const targetWidth = 384; // Termal yazıcı genişliği
+                const targetWidth = Math.max(384, (typeof Renderer !== 'undefined' && Renderer.canvasWidth) ? Renderer.canvasWidth : 384);
                 const scale = targetWidth / img.width;
                 canvas.width = targetWidth;
                 canvas.height = img.height * scale;

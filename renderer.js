@@ -98,7 +98,7 @@ const Renderer = {
         this.ctx.lineCap = 'square';
 
         const startX = 5;
-        const endX = 379;
+        const endX = (this.canvasWidth || 384) - 5;
         const centerY = Math.round(y + 8);
 
         if (type === '---') { 
@@ -138,7 +138,7 @@ const Renderer = {
         const columns = line.split('|').map(c => c.trim()).filter(c => c !== '');
         if (columns.length === 0) return 0;
 
-        const CANVAS_WIDTH = 384;
+        const CANVAS_WIDTH = this.canvasWidth || 384;
         const PADDING = 4;
         const colWidth = (CANVAS_WIDTH - 10) / columns.length;
 
@@ -216,8 +216,9 @@ const Renderer = {
         let w = imgObj.width * scale;
         let h = imgObj.height * scale;
 
-        // Kağıt genişliğini (384px) aşmayı önlemek için maksimum 374px'e sığdır
-        const maxPrintWidth = 374;
+        // Kağıt genişliğini aşmayı önlemek için sığdır
+        const canvasWidth = this.canvasWidth || 384;
+        const maxPrintWidth = canvasWidth - 10;
         if (w > maxPrintWidth) {
             const fitFactor = maxPrintWidth / w;
             w = maxPrintWidth;
@@ -228,15 +229,15 @@ const Renderer = {
 
         if (mode === 1) {
             // Kağıt dışına ve negatif koordinatlara taşmayı engelle (en az 5px kenar payı)
-            const safeX = Math.max(5, Math.min(384 - w - 5, xOffset));
+            const safeX = Math.max(5, Math.min(canvasWidth - w - 5, xOffset));
             const safeY = Math.max(5, yOffset);
             centerX = safeX + w / 2;
             centerY = safeY + h / 2;
         } else {
             if (align && align.hasRight) {
-                centerX = 384 - 5 - w / 2 + xOffset;
+                centerX = canvasWidth - 5 - w / 2 + xOffset;
             } else {
-                centerX = (384 / 2) + xOffset; 
+                centerX = (canvasWidth / 2) + xOffset; 
             }
             centerY = currentY + h / 2 + yOffset;
         }
@@ -293,19 +294,24 @@ const Renderer = {
         }
 
         this.lastRenderedPositions = {};
-        const { fontSize, lineSpacing, offsetX, fontFamily, bottomMargin } = params;
+        const { fontSize, lineSpacing, offsetX, fontFamily, bottomMargin, orientation, landscapeWidth } = params;
         
+        this.orientation = orientation || 'portrait';
+        const CANVAS_WIDTH = (this.orientation === 'landscape') 
+            ? Math.max(384, Math.min(1200, parseInt(landscapeWidth) || 576)) 
+            : 384;
+        this.canvasWidth = CANVAS_WIDTH;
+
         this.style = { 
             fontSize, 
             lineSpacing, 
             offsetX: offsetX || 0, 
             fontFamily: fontFamily || 'Arial', 
             currentSize: fontSize,
-            bottomMargin: bottomMargin !== undefined ? parseInt(bottomMargin) : 25
+            bottomMargin: bottomMargin !== undefined ? parseInt(bottomMargin) : (this.orientation === 'landscape' ? 15 : 25)
         };
         
         const lines = text.split('\n');
-        const CANVAS_WIDTH = 384;
         const PADDING_X = 5;
 
         const drawLoop = (isReal) => {
@@ -446,12 +452,18 @@ const Renderer = {
 
         if (!this.canvas) return;
 
-        this.canvas.width = 384;
+        this.canvas.width = CANVAS_WIDTH;
         
         // Pas 1: Yükseklik hesapla
         const totalH = drawLoop(false);
         const bMargin = this.style.bottomMargin !== undefined ? this.style.bottomMargin : 25;
-        this.canvas.height = Math.max(100, Math.ceil(totalH + bMargin));
+        
+        if (this.orientation === 'landscape') {
+            // Yatay modda termal rulo genişliği 384 dot'tur.
+            this.canvas.height = Math.max(384, Math.ceil(totalH + bMargin));
+        } else {
+            this.canvas.height = Math.max(100, Math.ceil(totalH + bMargin));
+        }
 
         // Pas 2: Çizim yap
         this.ctx.save();
@@ -571,44 +583,75 @@ const Renderer = {
         }
         flush();
     },
-    
-getBitmapBytes(rotationAngle = 0) {
+    getBitmapBytes(rotationAngle = 0) {
         const angle = parseInt(rotationAngle) || 0;
         let sourceCanvas = this.canvas;
 
-        // Eğer 90, 180 veya 270 derece döndürme isteniyorsa geçici bir Canvas üzerinde çevirelim
+        // 90, 180 veya 270 derece döndürme işlemi
         if (angle !== 0) {
             const tempCanvas = document.createElement('canvas');
             const tempCtx = tempCanvas.getContext('2d');
 
             if (angle === 90 || angle === 270) {
-                // Yatay modda genişlik ve yükseklik yer değiştirir
-                tempCanvas.width = this.canvas.height;
-                tempCanvas.height = this.canvas.width;
-            } else {
-                // 180 derecede boyutlar aynı kalır
+                // Yatay modda döndürme:
+                // Termal kafa sabit genişliği kesinlikle 384 dot (48 bayt) olmak zorundadır!
+                const targetWidth = 384;
+                
+                // Eğer orijinal canvas yüksekliği 384'ten büyükse, termal kafa genişliğine sığdırmak için orantılı ölçekle
+                const scale = (this.canvas.height > targetWidth) ? (targetWidth / this.canvas.height) : 1.0;
+                const scaledHeight = Math.round(this.canvas.height * scale);
+                const scaledWidth = Math.round(this.canvas.width * scale);
+
+                tempCanvas.width = targetWidth;
+                tempCanvas.height = Math.max(1, scaledWidth);
+
+                tempCtx.save();
+                tempCtx.fillStyle = "white";
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+                // Dikeyde ortalama payı (eğer yükseklik < 384 ise kenarlarda simetrik beyaz boşluk kalır)
+                const offsetAcross = Math.max(0, Math.floor((targetWidth - scaledHeight) / 2));
+
+                if (angle === 90) {
+                    // Saat yönünde 90° döndürme (sol kenar ilk önce yazıcıdan çıkar)
+                    tempCtx.translate(targetWidth - offsetAcross, 0);
+                    tempCtx.rotate(90 * Math.PI / 180);
+                } else if (angle === 270) {
+                    // Saat yönünün tersine 90° döndürme
+                    tempCtx.translate(offsetAcross, tempCanvas.height);
+                    tempCtx.rotate(270 * Math.PI / 180);
+                }
+
+                tempCtx.drawImage(this.canvas, 0, 0, scaledWidth, scaledHeight);
+                tempCtx.restore();
+                sourceCanvas = tempCanvas;
+            } else if (angle === 180) {
+                // 180 derece (Ters / Baş Aşağı): Müşteriye doğru anında okunabilir çıktı
                 tempCanvas.width = this.canvas.width;
                 tempCanvas.height = this.canvas.height;
-            }
-
-            tempCtx.save();
-            // Canvas merkezine git ve döndür
-            if (angle === 90) {
-                tempCtx.translate(tempCanvas.width, 0);
-                tempCtx.rotate(90 * Math.PI / 180);
-            } else if (angle === 180) {
+                tempCtx.save();
+                tempCtx.fillStyle = "white";
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
                 tempCtx.translate(tempCanvas.width, tempCanvas.height);
                 tempCtx.rotate(180 * Math.PI / 180);
-            } else if (angle === 270) {
-                tempCtx.translate(0, tempCanvas.height);
-                tempCtx.rotate(270 * Math.PI / 180);
+                tempCtx.drawImage(this.canvas, 0, 0);
+                tempCtx.restore();
+                sourceCanvas = tempCanvas;
             }
+        }
 
-            // Orijinal canvas'ı döndürülmüş tempCanvas üzerine çiz
-            tempCtx.drawImage(this.canvas, 0, 0);
-            tempCtx.restore();
-
-            sourceCanvas = tempCanvas;
+        // Güvenlik denetimi: Termal yazıcı kafa genişliği 384 dot olmalıdır.
+        // Eğer herhangi bir nedenle kaynak canvas genişliği 384 değilse, tam 384'e ölçekleyip garanti altına alalım
+        if (sourceCanvas.width !== 384) {
+            const fixedCanvas = document.createElement('canvas');
+            const fixedCtx = fixedCanvas.getContext('2d');
+            const scale = 384 / sourceCanvas.width;
+            fixedCanvas.width = 384;
+            fixedCanvas.height = Math.max(1, Math.round(sourceCanvas.height * scale));
+            fixedCtx.fillStyle = "white";
+            fixedCtx.fillRect(0, 0, fixedCanvas.width, fixedCanvas.height);
+            fixedCtx.drawImage(sourceCanvas, 0, 0, fixedCanvas.width, fixedCanvas.height);
+            sourceCanvas = fixedCanvas;
         }
 
         const width = sourceCanvas.width; 
