@@ -216,14 +216,18 @@ const Renderer = {
         let w = imgObj.width * scale;
         let h = imgObj.height * scale;
 
-        // Kağıt genişliğini aşmayı önlemek için sığdır
+        // Kağıt sınırlarını aşmayı önlemek için sığdır
         const canvasWidth = this.canvasWidth || 384;
         const maxPrintWidth = canvasWidth - 10;
+        let fitFactor = 1.0;
         if (w > maxPrintWidth) {
-            const fitFactor = maxPrintWidth / w;
-            w = maxPrintWidth;
-            h = h * fitFactor;
+            fitFactor = Math.min(fitFactor, maxPrintWidth / w);
         }
+        if (this.orientation === 'landscape' && (h * fitFactor) > 364) {
+            fitFactor = Math.min(fitFactor, 364 / h);
+        }
+        w = w * fitFactor;
+        h = h * fitFactor;
 
         let centerX, centerY;
 

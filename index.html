@@ -220,6 +220,7 @@
                 <div class="quick-orient-toggle" title="Çıktı Yönü / Print Orientation">
                     <button type="button" class="btn-quick-orient active" id="quickOrientPortrait" onclick="App.setOrientation('portrait')" title="Dikey Format (Portrait)">📄 Dikey</button>
                     <button type="button" class="btn-quick-orient" id="quickOrientLandscape" onclick="App.setOrientation('landscape')" title="Yatay Format (Landscape)">🔄 Yatay</button>
+                    <button type="button" class="btn-quick-rotate" id="quickRotateBtn" onclick="App.cycleRotation()" title="90° Döndür / Rotate 90°">⟳ <span id="quickAngleLabel">0°</span></button>
                 </div>
             </div>
             <div class="preview-actions">
@@ -277,41 +278,43 @@
             <h4><span class="lang-tr">Ayarlar</span><span class="lang-en">Settings</span></h4>
             
             <div class="param">
-                <label><span class="lang-tr">Çıktı Formatı / Yönü</span><span class="lang-en">Output Orientation</span></label>
+                <label><span class="lang-tr">Çıktı Formatı & Yönü</span><span class="lang-en">Output Orientation</span></label>
                 <div class="orientation-group">
                     <button type="button" class="btn-orientation active" id="btnOrientPortrait" onclick="App.setOrientation('portrait')">
-                        📄 <span class="lang-tr">Dikey (384px)</span><span class="lang-en">Portrait (384px)</span>
+                        📄 <span class="lang-tr">Dikey Fiş (384px)</span><span class="lang-en">Portrait Receipt</span>
                     </button>
                     <button type="button" class="btn-orientation" id="btnOrientLandscape" onclick="App.setOrientation('landscape')">
-                        🔄 <span class="lang-tr">Yatay (Geniş)</span><span class="lang-en">Landscape (Wide)</span>
+                        🔄 <span class="lang-tr">Yatay Etiket</span><span class="lang-en">Landscape Label</span>
                     </button>
                 </div>
             </div>
 
             <div id="landscapeSettingsGroup" class="landscape-settings hidden">
-                <div class="param" style="margin-bottom: 0;">
+                <div class="param" style="margin-bottom: 8px;">
                     <label>
-                        <span class="lang-tr">Yatay Genişlik (Uzunluk)</span><span class="lang-en">Landscape Width (Length)</span>:
-                        <b><span id="vLandscapeWidth">576</span>px</b> (~<span id="vLandscapeCm">7.2</span> cm)
+                        <span class="lang-tr">Etiket Boyu (Uzunluk)</span><span class="lang-en">Label Length</span>:
+                        <b><span id="vLandscapeCm">7.2</span> cm</b> (<span id="vLandscapeWidth">576</span>px)
                     </label>
                     <div class="landscape-presets">
-                        <button type="button" class="btn-preset" data-w="480" onclick="App.setLandscapeWidth(480)">480px (6cm)</button>
-                        <button type="button" class="btn-preset active" data-w="576" onclick="App.setLandscapeWidth(576)">576px (7.2cm)</button>
-                        <button type="button" class="btn-preset" data-w="720" onclick="App.setLandscapeWidth(720)">720px (9cm)</button>
-                        <button type="button" class="btn-preset" data-w="960" onclick="App.setLandscapeWidth(960)">960px (12cm)</button>
+                        <button type="button" class="btn-preset" data-w="480" onclick="App.setLandscapeWidth(480)">6 cm</button>
+                        <button type="button" class="btn-preset active" data-w="576" onclick="App.setLandscapeWidth(576)">7.5 cm</button>
+                        <button type="button" class="btn-preset" data-w="720" onclick="App.setLandscapeWidth(720)">9 cm</button>
+                        <button type="button" class="btn-preset" data-w="960" onclick="App.setLandscapeWidth(960)">12 cm</button>
                     </div>
-                    <input type="range" id="landscapeWidth" min="384" max="1200" step="16" value="576" oninput="App.onLandscapeWidthChange(this.value)">
                 </div>
+                <button type="button" class="btn-action-small" onclick="App.loadLandscapeSample()" style="width: 100%; font-size: 11px; padding: 6px; border: 1px dashed #007bff; background: #f0f7ff; color: #007bff; border-radius: 4px; cursor: pointer; font-weight: 600;">
+                    📋 <span class="lang-tr">Örnek Yatay Kargo / Barkod Şablonu Yükle</span><span class="lang-en">Load Sample Landscape Template</span>
+                </button>
             </div>
 
             <div class="param">
-                <label><span class="lang-tr">Baskı Döndürme Açısı</span><span class="lang-en">Print Rotation Angle</span></label>
-                <select id="rotationAngle" onchange="App.setRotation(this.value)">
-                    <option value="0">0° — Normal Dikey / Standard Portrait</option>
-                    <option value="90">90° — Yatay / Landscape (Saat Yönü)</option>
-                    <option value="180">180° — Ters / Upside-down (Baş Aşağı)</option>
-                    <option value="270">270° — Ters Yatay / CCW Landscape</option>
-                </select>
+                <label><span class="lang-tr">Baskı Döndürme Açısı</span><span class="lang-en">Rotation Angle</span></label>
+                <div class="rotation-pill-group">
+                    <button type="button" class="btn-rot-pill active" data-angle="0" onclick="App.setRotation(0)">0° Normal</button>
+                    <button type="button" class="btn-rot-pill" data-angle="90" onclick="App.setRotation(90)">90° Yatay</button>
+                    <button type="button" class="btn-rot-pill" data-angle="180" onclick="App.setRotation(180)">180° Ters</button>
+                    <button type="button" class="btn-rot-pill" data-angle="270" onclick="App.setRotation(270)">270°</button>
+                </div>
             </div>
 
             <div class="param">

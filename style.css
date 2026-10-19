@@ -369,6 +369,27 @@ select, button, .tab-btn {
     box-shadow: 0 1px 3px rgba(0,0,0,0.12);
 }
 
+.btn-quick-rotate {
+    min-height: 24px !important;
+    height: 24px;
+    padding: 0 8px !important;
+    font-size: 11px;
+    font-weight: 700;
+    border: none;
+    border-radius: 4px;
+    background: #dee2e6;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    margin-left: 2px;
+    margin-bottom: 0 !important;
+}
+
+.btn-quick-rotate:hover {
+    background: #007bff;
+    color: #fff;
+}
+
 .preview-actions {
     display: flex;
     align-items: center;
@@ -548,6 +569,42 @@ select, button, .tab-btn {
     border-color: #007bff;
     color: #007bff;
     font-weight: 700;
+}
+
+/* Rotasyon Hap Butonları */
+.rotation-pill-group {
+    display: flex;
+    gap: 6px;
+    width: 100%;
+}
+
+.btn-rot-pill {
+    flex: 1;
+    min-height: 32px !important;
+    height: 32px;
+    padding: 0 4px !important;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    background: #fff;
+    color: #495057;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    margin-bottom: 0 !important;
+}
+
+.btn-rot-pill:hover {
+    border-color: #007bff;
+    color: #007bff;
+    background: #f8f9fa;
+}
+
+.btn-rot-pill.active {
+    background: #007bff;
+    color: #fff;
+    border-color: #0056b3;
+    box-shadow: 0 2px 4px rgba(0, 123, 255, 0.25);
 }
 
 /* Fiş İstatistikleri Çubuğu */

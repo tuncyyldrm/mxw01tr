@@ -600,8 +600,34 @@ const App = {
 
         let tpl = '';
 
-        if (type === 'code_only') {
-            tpl = `[C][S:48][W:900]**${senderName.toUpperCase()}**
+        if (this.orientation === 'landscape') {
+            if (type === 'code_only') {
+                tpl = `[C][S:36][W:900]**${senderName.toUpperCase()} — ${carrier.toUpperCase()}**
+================================================
+[C][CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.6]
+[C][S:30][W:900]**${trackNo}**
+================================================
+| TARİH: ${dateStr} | SİPARİŞ KARGO PAKETİ |`;
+            } else {
+                const rName = document.getElementById('cargoReceiverName').value || '';
+                const rPhone = document.getElementById('cargoReceiverPhone').value || '';
+                const rAddr = document.getElementById('cargoReceiverAddress').value || '';
+                const sPhone = document.getElementById('cargoSenderPhone').value || '';
+
+                tpl = `[C][S:32][W:900]**${carrier.toUpperCase()}**
+================================================
+| GÖNDERİCİ: ${senderName} | TEL: ${sPhone || '-'} |
+------------------------------------------------
+[C][CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.4]
+[C][S:26][W:900]**${trackNo}**
+------------------------------------------------
+| ALICI: ${rName} | TEL: ${rPhone} |
+| ADRES: ${rAddr} |
+================================================`;
+            }
+        } else {
+            if (type === 'code_only') {
+                tpl = `[C][S:48][W:900]**${senderName.toUpperCase()}**
 ================================
 [C][S:23][W:900]**${carrier.toUpperCase()}**
 ================================
@@ -609,13 +635,13 @@ const App = {
 [C][S:35][W:900]**${trackNo}**
 ================================
 [C][S:24][W:700]${dateStr}`;
-        } else {
-            const rName = document.getElementById('cargoReceiverName').value || '';
-            const rPhone = document.getElementById('cargoReceiverPhone').value || '';
-            const rAddr = document.getElementById('cargoReceiverAddress').value || '';
-            const sPhone = document.getElementById('cargoSenderPhone').value || '';
+            } else {
+                const rName = document.getElementById('cargoReceiverName').value || '';
+                const rPhone = document.getElementById('cargoReceiverPhone').value || '';
+                const rAddr = document.getElementById('cargoReceiverAddress').value || '';
+                const sPhone = document.getElementById('cargoSenderPhone').value || '';
 
-            tpl = `[C][S:36][W:900]**${carrier.toUpperCase()}**
+                tpl = `[C][S:36][W:900]**${carrier.toUpperCase()}**
 [C][S:35]${trackNo}
 ================================
 [S:22]**ALICI:** ${rName}
@@ -627,6 +653,7 @@ const App = {
 [S:22]Tel: ${sPhone}
 ================================
 [C][QR:memonex3d.com|0|0|0|0|0.5]`;
+            }
         }
 
         const textarea = document.getElementById('textInput');
@@ -861,6 +888,13 @@ const App = {
         this.setLandscapeWidth(val);
     },
 
+    cycleRotation() {
+        const angles = [0, 90, 180, 270];
+        const currentIdx = Math.max(0, angles.indexOf(this.rotationAngle));
+        const nextAngle = angles[(currentIdx + 1) % angles.length];
+        this.setRotation(nextAngle);
+    },
+
     setRotation(angle) {
         const a = parseInt(angle) || 0;
         this.rotationAngle = a;
@@ -868,15 +902,46 @@ const App = {
             localStorage.setItem('mxw01_rotation_angle', a);
         } catch (e) {}
 
+        // 90° veya 270° yatay modu, 0° veya 180° dikey modu temsil eder
         if ((a === 90 || a === 270) && this.orientation !== 'landscape') {
-            this.setOrientation('landscape');
-            return;
+            this.orientation = 'landscape';
+            try { localStorage.setItem('mxw01_orientation', 'landscape'); } catch (e) {}
         } else if ((a === 0 || a === 180) && this.orientation !== 'portrait') {
-            this.setOrientation('portrait');
-            return;
+            this.orientation = 'portrait';
+            try { localStorage.setItem('mxw01_orientation', 'portrait'); } catch (e) {}
         }
 
         this.updateOrientationUI();
+        this.updatePreview();
+    },
+
+    loadLandscapeSample() {
+        const isEn = document.body.classList.contains('en-mode');
+        const msg = isEn 
+            ? "Load sample horizontal shipping parcel template?" 
+            : "Örnek yatay kargo/etiket şablonu yüklensin mi? (Düzenleyici içeriği güncellenecektir)";
+        if (confirm(msg)) {
+            const textarea = document.getElementById('textInput');
+            const now = new Date();
+            const dateStr = now.toLocaleDateString(isEn ? 'en-US' : 'tr-TR');
+            const landscapeTpl = `[C][S:34][W:900]**TRENDYOL HIZLI GÖNDERİ**
+================================================
+| GÖNDERİCİ: MEMONEX 3D | TARİH: ${dateStr} |
+| TAKİP NO: 2646659276574893                |
+------------------------------------------------
+[C][CODE128:2646659276574893|0|0|0|0|1.5]
+[C][S:26][W:900]**2646 6592 7657 4893**
+------------------------------------------------
+| ALICI: Ahmet Yılmaz   | TEL: 0555 123 45 67  |
+| ADRES: Atatürk Mah. Cumhuriyet Cad. No:12 D:4|
+================================================`;
+            if (textarea) {
+                textarea.value = landscapeTpl;
+                this.setOrientation('landscape');
+                this.saveDraft();
+                this.updatePreview();
+            }
+        }
     },
 
     getEffectiveRotation() {
@@ -902,7 +967,13 @@ const App = {
         if (qPortrait) qPortrait.classList.toggle('active', !isLandscape);
         if (qLandscape) qLandscape.classList.toggle('active', isLandscape);
 
-        // Yatay ayar grubu
+        // Hızlı rotasyon etiketi
+        const qAngleLabel = document.getElementById('quickAngleLabel');
+        if (qAngleLabel) {
+            qAngleLabel.innerText = `${this.rotationAngle}°`;
+        }
+
+        // Yatay ayar paneli görünürlüğü
         const lGroup = document.getElementById('landscapeSettingsGroup');
         if (lGroup) {
             if (isLandscape) {
@@ -912,13 +983,11 @@ const App = {
             }
         }
 
-        // Değer etiketleri ve slider
+        // Değer etiketleri
         const vWidth = document.getElementById('vLandscapeWidth');
         const vCm = document.getElementById('vLandscapeCm');
-        const slider = document.getElementById('landscapeWidth');
         if (vWidth) vWidth.innerText = this.landscapeWidth;
         if (vCm) vCm.innerText = ((this.landscapeWidth / 8) / 10).toFixed(1);
-        if (slider) slider.value = this.landscapeWidth;
 
         // Preset butonları aktifliği
         document.querySelectorAll('.landscape-presets .btn-preset').forEach(btn => {
@@ -926,11 +995,11 @@ const App = {
             btn.classList.toggle('active', btnW === this.landscapeWidth);
         });
 
-        // Döndürme açısı seçimi
-        const rotSelect = document.getElementById('rotationAngle');
-        if (rotSelect) {
-            rotSelect.value = String(this.rotationAngle);
-        }
+        // Rotasyon hap butonları aktifliği
+        document.querySelectorAll('.rotation-pill-group .btn-rot-pill').forEach(btn => {
+            const btnAngle = parseInt(btn.dataset.angle);
+            btn.classList.toggle('active', btnAngle === this.rotationAngle);
+        });
 
         // Kağıt yırtma kenarı genişliğini canvas ile senkronize et
         const tearEdge = document.querySelector('.paper-tear-edge');
