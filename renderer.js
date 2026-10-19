@@ -143,7 +143,7 @@ const Renderer = {
 
         const CANVAS_WIDTH = this.canvasWidth || 384;
         const PADDING = 4;
-        const colWidth = (CANVAS_WIDTH - 10) / columns.length;
+        const tableWidth = CANVAS_WIDTH - 10;
 
         // Markdown tablo ayraç satırı kontrolü: |---|---|---|
         const isHeaderDivider = columns.every(c => /^[-:]+$/.test(c));
@@ -154,20 +154,34 @@ const Renderer = {
                 this.ctx.strokeStyle = '#000';
                 this.ctx.lineWidth = 1;
                 this.ctx.setLineDash([2, 2]);
-                this.ctx.moveTo(5, currentY + 4);
-                this.ctx.lineTo(CANVAS_WIDTH - 5, currentY + 4);
+                this.ctx.moveTo(5, currentY + 3);
+                this.ctx.lineTo(CANVAS_WIDTH - 5, currentY + 3);
                 this.ctx.stroke();
                 this.ctx.restore();
             }
             return 8;
         }
 
+        // Sütun genişlik oranları (POS fişlerinde ürün adı geniş, adet dar olmalıdır)
+        let colWidths = [];
+        if (columns.length === 2) {
+            colWidths = [tableWidth * 0.50, tableWidth * 0.50];
+        } else if (columns.length === 3) {
+            colWidths = [tableWidth * 0.52, tableWidth * 0.20, tableWidth * 0.28];
+        } else if (columns.length === 4) {
+            colWidths = [tableWidth * 0.44, tableWidth * 0.14, tableWidth * 0.21, tableWidth * 0.21];
+        } else {
+            const equalW = tableWidth / columns.length;
+            colWidths = columns.map(() => equalW);
+        }
+
         const fontStack = `${this.style.fontFamily}, sans-serif`;
         const cellLineHeight = this.style.fontSize * this.style.lineSpacing;
 
         // Her sütundaki metinleri saralım
-        const cellData = columns.map(col => {
-            const maxWidth = Math.max(20, colWidth - (PADDING * 2));
+        const cellData = columns.map((col, index) => {
+            const colW = colWidths[index];
+            const maxWidth = Math.max(16, colW - (PADDING * 2));
             const wrapped = this.wrapText(col, maxWidth);
             return wrapped.length > 0 ? wrapped : [''];
         });
@@ -178,9 +192,14 @@ const Renderer = {
         if (isReal) {
             this.ctx.save();
             this.ctx.imageSmoothingEnabled = false;
+            this.ctx.textBaseline = "top";
+            this.ctx.fillStyle = "black";
+
+            let currentColX = 5;
 
             columns.forEach((col, index) => {
-                const x = 5 + (index * colWidth);
+                const colW = colWidths[index];
+                const isFirstCol = (index === 0);
                 const isLastCol = (index === columns.length - 1);
                 const lines = cellData[index];
 
@@ -189,9 +208,15 @@ const Renderer = {
                     const cleanTxt = tLine.replace(/\*\*|\*|_/g, '');
                     this.ctx.font = `600 ${this.style.fontSize}px ${fontStack}`;
                     const textWidth = this.ctx.measureText(cleanTxt).width;
-                    const drawX = (isLastCol && columns.length > 1) 
-                        ? (x + colWidth - PADDING - textWidth) 
-                        : (x + PADDING);
+
+                    let drawX = currentColX + PADDING;
+                    if (isLastCol && columns.length > 1) {
+                        // Son sütun (Fiyat / Toplam vb.) sağa yasla
+                        drawX = currentColX + colW - PADDING - textWidth;
+                    } else if (!isFirstCol && (columns.length === 3 || columns.length === 4) && index === 1) {
+                        // 2. sütun (Adet / Ad vb.) ortala
+                        drawX = currentColX + Math.max(PADDING, Math.round((colW - textWidth) / 2));
+                    }
 
                     this.renderStyledText(
                         tLine,
@@ -199,7 +224,7 @@ const Renderer = {
                         Math.round(lineY),
                         this.style.fontSize,
                         fontStack,
-                        false,
+                        true, // Hücre metnini çizmesi için kesinlikle true olmalıdır
                         null,
                         '600'
                     );
@@ -208,12 +233,16 @@ const Renderer = {
                 if (index > 0) {
                     this.ctx.beginPath();
                     this.ctx.setLineDash([2, 2]);
-                    this.ctx.moveTo(x, currentY - 2);
-                    this.ctx.lineTo(x, currentY + rowHeight);
+                    this.ctx.moveTo(currentColX, currentY - 2);
+                    this.ctx.lineTo(currentColX, currentY + rowHeight);
                     this.ctx.strokeStyle = '#888';
+                    this.ctx.lineWidth = 1;
                     this.ctx.stroke();
                 }
+
+                currentColX += colW;
             });
+
             this.ctx.restore();
         }
 
