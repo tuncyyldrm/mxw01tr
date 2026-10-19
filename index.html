@@ -131,6 +131,40 @@
         </div>
 
         <div id="markdown-tab" class="tab-content">
+            <div class="editor-toolbar" id="editorToolbar">
+                <div class="toolbar-group">
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('bold')" title="Kalın (Bold)"><b>B</b></button>
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('italic')" title="İtalik (Italic)"><i>I</i></button>
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('center')" title="Ortala (Center)">[C]</button>
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('right')" title="Sağa Yasla (Right)">[R]</button>
+                </div>
+                <div class="toolbar-separator"></div>
+                <div class="toolbar-group">
+                    <select class="tool-select" onchange="App.applySize(this.value); this.selectedIndex=0;" title="Yazı Boyutu">
+                        <option value="" disabled selected>📏 Boyut</option>
+                        <option value="S:20">Küçük (20px)</option>
+                        <option value="S:28">Normal (28px)</option>
+                        <option value="S:36">Başlık (36px)</option>
+                        <option value="S:48">Büyük Başlık (48px)</option>
+                    </select>
+                    <select class="tool-select" onchange="App.insertDivider(this.value); this.selectedIndex=0;" title="Ayraç Çizgisi Ekle">
+                        <option value="" disabled selected>➖ Çizgi</option>
+                        <option value="---">Düz Çizgi (---)</option>
+                        <option value="===">Çift Çizgi (===)</option>
+                        <option value="~~~">Dalgalı Çizgi (~~~)</option>
+                        <option value="...">Kesikli Çizgi (...)</option>
+                    </select>
+                </div>
+                <div class="toolbar-separator"></div>
+                <div class="toolbar-group">
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('box')" title="Kutu İçine Al (Box)">📦 Kutu</button>
+                    <button type="button" class="tool-btn" onclick="App.promptInsertQR()" title="Hızlı QR Kod Ekle">🔳 QR</button>
+                    <button type="button" class="tool-btn" onclick="App.promptInsertBarcode()" title="Hızlı Barkod Ekle">||| Barkod</button>
+                    <button type="button" class="tool-btn" onclick="App.insertDateTime()" title="Tarih ve Saat Ekle">📅 Tarih</button>
+                    <button type="button" class="tool-btn" onclick="App.insertSampleTable()" title="Örnek Tablo Ekle">▦ Tablo</button>
+                    <button type="button" class="tool-btn" onclick="App.applyFormat('bullet')" title="Madde İmi (Bullet)">• Madde</button>
+                </div>
+            </div>
             <textarea id="textInput" spellcheck="false" placeholder="">[C][S:38][W:900]**MEMONEX 3D**
 ================================
 * Alışverişiniz için teşekkürler!
@@ -141,9 +175,15 @@
 [C][S:28]- 0531 208 48 97 -
 [C][QR:memonex3d.com|0|0|0|0|0.6]
 [C][S:20]memonex3d.com</textarea>
-            <div class="editor-footer" style="font-size: 12px; color: #666; padding-top: 10px;">
-                <span class="lang-tr">İpucu: Kodlar için [QR:text] kullanın, resimleri önizleme alanına sürükleyin.</span>
-                <span class="lang-en">Hint: use [QR:text] for codes, drag images onto the preview.</span>
+            <div class="editor-footer">
+                <div class="auto-save-status" id="autoSaveStatus">
+                    <span class="lang-tr">💾 Taslak kaydedildi</span>
+                    <span class="lang-en">💾 Draft saved</span>
+                </div>
+                <div class="editor-actions">
+                    <button type="button" class="btn-text-action" onclick="App.clearEditor()" title="Temizle / Clear">🧹 <span class="lang-tr">Temizle</span><span class="lang-en">Clear</span></button>
+                    <button type="button" class="btn-text-action" onclick="App.resetDefaultTemplate()" title="Varsayılan Şablon / Reset Default">↺ <span class="lang-tr">Sıfırla</span><span class="lang-en">Reset</span></button>
+                </div>
             </div>
         </div>
 
@@ -176,16 +216,35 @@
     <section class="card column-preview">
         <div class="block-header">
             <span class="lang-tr">Önizleme</span><span class="lang-en">Preview</span>
-            <button class="view-real-btn">📷</button>
+            <div class="preview-actions">
+                <button type="button" class="btn-preview-tool" onclick="App.downloadReceiptImage()" title="PNG Görseli Olarak İndir / Download PNG">💾 PNG</button>
+                <button type="button" class="view-real-btn" title="Gerçekçi Görünüm / Realistic View">📷</button>
+            </div>
         </div>
         
         <div class="canvas-wrapper">
             <canvas id="mainCanvas"></canvas>
+            <div class="paper-tear-edge"></div>
             <div id="realPhotoOverlay" class="real-photo-overlay hidden">
                 <img src="assets/real_check.jpg" id="realPhotoImg">
             </div>
         </div>
-        <button id="printBtn" class="btn-print" disabled><span class="lang-tr">YAZDIR</span><span class="lang-en">PRINT</span></button>
+
+        <div class="paper-metrics-bar" id="paperMetrics">
+            <span id="metricLength">📏 ~0.0 cm</span>
+            <span class="sep">•</span>
+            <span id="metricTime">⏱️ ~0.0 sn</span>
+            <span class="sep">•</span>
+            <span id="metricDots">384×0 px</span>
+        </div>
+
+        <div class="print-control-row">
+            <div class="copy-selector" title="Baskı Kopya Sayısı / Print Copies">
+                <label><span class="lang-tr">Kopya</span><span class="lang-en">Copies</span></label>
+                <input type="number" id="printCopies" min="1" max="10" value="1">
+            </div>
+            <button id="printBtn" class="btn-print" disabled><span class="lang-tr">YAZDIR (Ctrl+Enter)</span><span class="lang-en">PRINT (Ctrl+Enter)</span></button>
+        </div>
         <div id="printStatus" class="status-sub"></div>
     </section>
 
@@ -198,6 +257,13 @@
             </button>
             <div id="status" class="status-label">
                 <span class="lang-tr">Durum: Bağlantı kesildi</span><span class="lang-en">Status: Disconnected</span>
+            </div>
+            <div id="printerBadge" class="printer-badge hidden" onclick="App.refreshPrinterStatus()" title="Durumu yenilemek için tıklayın / Click to refresh status">
+                <span id="badgeName">MXW01</span>
+                <span class="sep">|</span>
+                <span id="badgeBattery">🔋 %100</span>
+                <span class="sep">|</span>
+                <span id="badgeStatus">📄 Kâğıt Hazır</span>
             </div>
         </div>
 
@@ -231,6 +297,10 @@
             <div class="param">
                 <label><span class="lang-tr">Aralık</span><span class="lang-en">Spacing</span>: <span id="vSpacing">1.1</span></label>
                 <input type="range" id="lineSpacing" min="0.5" max="2.5" step="0.1" value="1.1">
+            </div>
+            <div class="param">
+                <label><span class="lang-tr">Yırtma Boşluğu (Alt)</span><span class="lang-en">Bottom Margin</span>: <span id="vBMargin">25</span>px</label>
+                <input type="range" id="bottomMargin" min="10" max="80" value="25">
             </div>
         </div>
     </section>

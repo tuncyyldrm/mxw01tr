@@ -215,31 +215,160 @@ select, button, .tab-btn {
 
 /* Редактор */
 .column-editor { display: flex; flex-direction: column; }
-#textInput { flex-grow: 1; min-height: 400px; width: 100%; border: 1px solid #ddd; padding: 10px; box-sizing: border-box; }
+.editor-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    padding: 6px 8px;
+    border-radius: 8px 8px 0 0;
+}
+.toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.toolbar-separator {
+    width: 1px;
+    height: 22px;
+    background: #ccc;
+    margin: 0 2px;
+}
+.tool-btn {
+    width: auto !important;
+    min-height: 32px !important;
+    height: 32px;
+    padding: 0 9px !important;
+    margin-bottom: 0 !important;
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    transition: all 0.15s ease-in-out;
+}
+.tool-btn:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+}
+.tool-select {
+    width: auto !important;
+    min-height: 32px !important;
+    height: 32px;
+    padding: 2px 6px !important;
+    margin-bottom: 0 !important;
+    background: white;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    color: #495057;
+}
+#textInput { 
+    flex-grow: 1; 
+    min-height: 400px; 
+    width: 100%; 
+    border: 1px solid #ddd; 
+    padding: 10px; 
+    box-sizing: border-box; 
+    border-radius: 0 0 8px 8px;
+}
+
+/* Durum ve Pil Rozeti */
+.printer-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 6px;
+    background: #e8f4fd;
+    color: #0d6efd;
+    margin-top: 10px;
+    border: 1px solid #b6d4fe;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease-in-out;
+}
+.printer-badge:hover {
+    filter: brightness(0.96);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+.printer-badge:active {
+    transform: scale(0.98);
+}
+.printer-badge .sep {
+    color: #9ec5fe;
+}
+.printer-badge.warning {
+    background: #fff3cd;
+    color: #664d03;
+    border-color: #ffecb5;
+}
+.printer-badge.danger {
+    background: #f8d7da;
+    color: #842029;
+    border-color: #f5c2c7;
+}
 
 /* Превью */
 .block-header {
     display: flex;
     justify-content: space-between; /* Текст слева, кнопка справа */
     align-items: center;
-  /*  margin-bottom: 10px;*/
     font-weight: bold;
     font-size: 0.9rem;
     color: #444;
 }
 
+.preview-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-preview-tool {
+    width: auto !important;
+    background: #fff;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    font-size: 11px;
+    cursor: pointer;
+    padding: 4px 8px !important;
+    margin-bottom: 0 !important;
+    color: #495057;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-preview-tool:hover {
+    background: #e9ecef;
+    border-color: #007bff;
+    color: #007bff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
 /* Стили кнопки «Как на бумаге?» */
 .view-real-btn {
-    width:initial;
+    width: initial;
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 11px;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 4px 8px !important;
+    margin-bottom: 0 !important;
     color: #666;
     transition: all 0.2s;
-    font-weight: normal; /* Чтобы не сливалась с заголовком */
+    font-weight: normal;
 }
 
 .view-real-btn:hover {
@@ -249,16 +378,23 @@ select, button, .tab-btn {
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
 }
 
-
 /* Обертка теперь контролирует размеры */
 .canvas-wrapper {
-    position: relative; /* База для позиционирования */
+    position: relative;
+    background: #eee; 
+    border: 1px dashed #ccc; 
+    padding: 10px; 
+    margin-bottom: 12px; 
+    display: flex; 
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
 
 .real-photo-overlay {
     position: absolute;
     z-index: 10;
-    pointer-events: none; /* Чтобы не мешало кликам, если нужно */
+    pointer-events: none;
     background: white;
     box-shadow: 0 4px 15px rgba(0,0,0,0.2);
     overflow: hidden;
@@ -267,22 +403,124 @@ select, button, .tab-btn {
 .real-photo-overlay img {
     width: 100%;
     height: 100%;
-    object-fit: cover; /* Растягиваем фото на всю площадь */
+    object-fit: cover;
 }
 
-
-
-
-.canvas-wrapper { 
-    background: #eee; border: 1px dashed #ccc; padding: 10px; 
-    margin-bottom: 15px; display: flex; justify-content: center;
+#mainCanvas { 
+    background: white; 
+    max-width: 100%; 
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+    display: block;
 }
-#mainCanvas { background: white; max-width: 100%; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+
+/* Termal Kağıt Kesim Tırtığı Efekti */
+.paper-tear-edge {
+    width: 100%;
+    max-width: 384px;
+    height: 8px;
+    background: linear-gradient(135deg, white 4px, transparent 0), linear-gradient(-135deg, white 4px, transparent 0);
+    background-size: 8px 8px;
+    background-repeat: repeat-x;
+    margin-top: -1px;
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
+}
+
+/* Fiş İstatistikleri Çubuğu */
+.paper-metrics-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #495057;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 6px 12px;
+    margin-bottom: 12px;
+}
+.paper-metrics-bar .sep {
+    color: #ced4da;
+}
+
+/* Yazdırma ve Kopya Kontrol Satırı */
+.print-control-row {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+}
+.copy-selector {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    background: #f8f9fa;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    padding: 4px 8px;
+    min-width: 65px;
+}
+.copy-selector label {
+    font-size: 10px;
+    color: #6c757d;
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+.copy-selector input {
+    width: 44px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: bold;
+    padding: 2px 0;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+.print-control-row .btn-print {
+    flex: 1;
+    margin-bottom: 0 !important;
+}
+
+/* Düzenleyici Alt Bilgi ve Aksiyonlar */
+.editor-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 8px;
+}
+.auto-save-status {
+    font-size: 11px;
+    color: #198754;
+    font-weight: 500;
+    transition: opacity 0.3s;
+}
+.editor-actions {
+    display: flex;
+    gap: 6px;
+}
+.btn-text-action {
+    width: auto !important;
+    background: #f8f9fa;
+    border: 1px solid #ced4da;
+    padding: 3px 8px !important;
+    font-size: 11px;
+    border-radius: 4px;
+    color: #495057;
+    cursor: pointer;
+    margin-bottom: 0 !important;
+    transition: all 0.15s;
+    font-weight: 500;
+}
+.btn-text-action:hover {
+    background: #e9ecef;
+    color: #007bff;
+    border-color: #007bff;
+}
 
 /* Кнопки */
 button { width: 100%; padding: 12px; margin-bottom: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 .btn-connect { background: #007bff; color: white; }
-.btn-print { background: #28a745; color: white; font-size: 1.2em; height: 60px; }
+.btn-print { background: #28a745; color: white; font-size: 1.15em; height: 56px; }
 .btn-print:disabled { background: #ccc; }
 
 /* Настройки */
@@ -354,13 +592,19 @@ select#driverSelect {
         text-align: center;
     }
 
-    /* YAZDIR BUTONU: Mobilde "Başparmak" dostu ve büyük olmalı */
-    .btn-print {
-        position: sticky; /* Sayfayı kaydırsalar da buton altta kalsın (opsiyonel) */
+    /* YAZDIR BUTONU & KOPYA KONTROLÜ: Mobilde başparmak dostu ve altta sabit */
+    .print-control-row {
+        position: sticky;
         bottom: 10px;
         z-index: 100;
-        box-shadow: 0 4px 20px rgba(40, 167, 69, 0.4);
-        height: 70px;
-        font-size: 1.4rem;
+        background: white;
+        padding: 6px;
+        border-radius: 8px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-print {
+        height: 60px;
+        font-size: 1.25rem;
     }
 }

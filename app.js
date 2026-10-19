@@ -8,6 +8,7 @@ const App = {
     dragOffset: { x: 0, y: 0 },
     
     init() {
+        this.loadDraft();
         this.fillDrivers();
         this.bindEvents();
         this.updatePreview();
@@ -88,6 +89,53 @@ const App = {
         if (printBtn) printBtn.disabled = true;
         const printStatus = document.getElementById('printStatus');
         if (printStatus) printStatus.innerText = "";
+        const badge = document.getElementById('printerBadge');
+        if (badge) badge.classList.add('hidden');
+    },
+
+    onPrinterStatus(info) {
+        if (!info) return;
+        const badge = document.getElementById('printerBadge');
+        if (!badge) return;
+
+        badge.classList.remove('hidden');
+
+        const badgeName = document.getElementById('badgeName');
+        const badgeBattery = document.getElementById('badgeBattery');
+        const badgeStatus = document.getElementById('badgeStatus');
+        const isEn = document.body.classList.contains('en-mode');
+
+        if (badgeName && info.name) {
+            badgeName.innerText = info.name;
+        }
+
+        badge.classList.remove('warning', 'danger');
+
+        if (badgeBattery) {
+            if (info.battery !== null && info.battery !== undefined) {
+                let icon = '🔋';
+                if (info.battery <= 20) icon = '🪫';
+                badgeBattery.innerText = `${icon} %${info.battery}`;
+
+                if (info.battery <= 15) {
+                    badge.classList.add('danger');
+                } else if (info.battery <= 30) {
+                    badge.classList.add('warning');
+                }
+            } else {
+                badgeBattery.innerText = '🔋 --%';
+            }
+        }
+
+        if (badgeStatus) {
+            if (info.noPaper) {
+                badgeStatus.innerText = isEn ? '⚠️ Out of Paper' : '⚠️ Kâğıt Yok';
+                badge.classList.remove('warning');
+                badge.classList.add('danger');
+            } else {
+                badgeStatus.innerText = isEn ? '📄 Paper Ready' : '📄 Kâğıt Hazır';
+            }
+        }
     },
 
     bindEvents() {
@@ -101,6 +149,9 @@ const App = {
                     const name = await this.currentDriver.connect();
                     document.getElementById('status').innerText = "🟢 " + name;
                     document.getElementById('printBtn').disabled = false;
+                    if (typeof this.currentDriver.updateStatus === 'function') {
+                        setTimeout(() => this.currentDriver.updateStatus(), 400);
+                    }
                 } catch (e) { 
                     alert("Bağlantı hatası: " + e.message); 
                 }
@@ -108,17 +159,31 @@ const App = {
         }
         
         // 2. Yazdırma butonu
+        // 2. Yazdırma butonu (Çoklu kopya desteği)
         const printBtn = document.getElementById('printBtn');
         if (printBtn) {
             printBtn.onclick = async () => {
                 try {
+                    const copiesEl = document.getElementById('printCopies');
+                    const copies = copiesEl ? Math.max(1, parseInt(copiesEl.value) || 1) : 1;
                     const { bytes, height } = Renderer.getBitmapBytes();
+                    const isEn = document.body.classList.contains('en-mode');
                     printBtn.disabled = true;
-                    document.getElementById('printStatus').innerText = "Yazdırılıyor...";
-                    
-                    await this.currentDriver.print(bytes, height);
-                    
-                    document.getElementById('printStatus').innerText = "Yazdırmaya hazır";
+
+                    for (let c = 1; c <= copies; c++) {
+                        const statusMsg = copies > 1
+                            ? (isEn ? `Printing... (Copy ${c}/${copies})` : `Yazdırılıyor... (Kopya ${c}/${copies})`)
+                            : (isEn ? "Printing..." : "Yazdırılıyor...");
+                        document.getElementById('printStatus').innerText = statusMsg;
+
+                        await this.currentDriver.print(bytes, height);
+
+                        if (c < copies) {
+                            await new Promise(r => setTimeout(r, 700));
+                        }
+                    }
+
+                    document.getElementById('printStatus').innerText = isEn ? "Ready to print" : "Yazdırmaya hazır";
                     printBtn.disabled = false;
                 } catch (e) {
                     alert("Yazdırma hatası: " + e.message);
@@ -155,9 +220,44 @@ const App = {
         });
         
         // 4. Girişler ve parametreler
-        ['textInput', 'fontSize', 'lineSpacing', 'offsetX', 'fontFamily'].forEach(id => {
+        ['textInput', 'fontSize', 'lineSpacing', 'offsetX', 'fontFamily', 'bottomMargin'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.oninput = () => this.updatePreview();
+        });
+
+        // Araç çubuğu butonlarına tıklandığında metin seçiminin kaybolmasını engelle
+        const toolbar = document.getElementById('editorToolbar');
+        if (toolbar) {
+            toolbar.addEventListener('mousedown', (e) => {
+                if (e.target.tagName !== 'SELECT' && e.target.tagName !== 'OPTION') {
+                    e.preventDefault();
+                }
+            });
+        }
+
+        // Klavye Kısayolları (Ctrl+Enter: Yazdır, Ctrl+B: Kalın, Ctrl+I: İtalik)
+        window.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                e.preventDefault();
+                const pBtn = document.getElementById('printBtn');
+                if (pBtn && !pBtn.disabled) {
+                    pBtn.click();
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B')) {
+                const textarea = document.getElementById('textInput');
+                if (document.activeElement === textarea) {
+                    e.preventDefault();
+                    this.applyFormat('bold');
+                }
+            }
+            if ((e.ctrlKey || e.metaKey) && (e.key === 'i' || e.key === 'I')) {
+                const textarea = document.getElementById('textInput');
+                if (document.activeElement === textarea) {
+                    e.preventDefault();
+                    this.applyFormat('italic');
+                }
+            }
         });
 
         window.onmousemove = (e) => {
@@ -250,14 +350,18 @@ const App = {
         const offsetXEl = document.getElementById('offsetX');
         const fontFamilyEl = document.getElementById('fontFamily');
         const textInputEl = document.getElementById('textInput');
+        const bottomMarginEl = document.getElementById('bottomMargin');
 
         if (!fontSizeEl || !lineSpacingEl || !offsetXEl || !fontFamilyEl || !textInputEl) return;
+
+        const bMargin = bottomMarginEl ? parseInt(bottomMarginEl.value) : 25;
 
         const params = {
             fontSize: parseInt(fontSizeEl.value),
             lineSpacing: parseFloat(lineSpacingEl.value),
             offsetX: parseInt(offsetXEl.value),
-            fontFamily: fontFamilyEl.value
+            fontFamily: fontFamilyEl.value,
+            bottomMargin: bMargin
         };
         
         if (typeof Renderer !== 'undefined' && Renderer.renderMarkdown) {
@@ -267,10 +371,15 @@ const App = {
         const vSizeEl = document.getElementById('vSize');
         const vOffsetEl = document.getElementById('vOffset');
         const vSpacingEl = document.getElementById('vSpacing');
+        const vBMarginEl = document.getElementById('vBMargin');
 
         if (vSizeEl) vSizeEl.innerText = params.fontSize;
         if (vOffsetEl) vOffsetEl.innerText = params.offsetX;
         if (vSpacingEl) vSpacingEl.innerText = params.lineSpacing;
+        if (vBMarginEl) vBMarginEl.innerText = bMargin;
+
+        this.updatePaperMetrics();
+        this.saveDraft();
     },
 
     applyImgChanges() {
@@ -483,7 +592,7 @@ const App = {
 ================================
 [C][S:23][W:900]**${carrier.toUpperCase()}**
 ================================
-[CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.4]
+[C][CODE128:${trackNo.replace(/\s+/g, '')}|0|0|0|0|1.4]
 [C][S:35][W:900]**${trackNo}**
 ================================
 [C][S:24][W:700]${dateStr}`;
@@ -495,17 +604,16 @@ const App = {
 
             tpl = `[C][S:36][W:900]**${carrier.toUpperCase()}**
 [C][S:35]${trackNo}
---------------------------------------------------------
+================================
 [S:22]**ALICI:** ${rName}
 [S:22]Tel: ${rPhone}
 [S:22]Adres: ${rAddr}
 
---------------------------------------------------------
-[S:30]**GÖNDERİCİ:** 
-[S:30]${senderName} 
-[S:30](${sPhone})
---------------------------------------------------------
-[C][QR:memonex3d.com|1|280|227|0|0.4]`;
+================================
+[S:26]**GÖNDERİCİ:** ${senderName}
+[S:22]Tel: ${sPhone}
+================================
+[C][QR:memonex3d.com|0|0|0|0|0.5]`;
         }
 
         const textarea = document.getElementById('textInput');
@@ -514,10 +622,259 @@ const App = {
         const markdownTabBtn = document.querySelector('.tab-btn[data-tab="markdown"]');
         if (markdownTabBtn) markdownTabBtn.click();
         
+        this.saveDraft();
         if (typeof this.updatePreview === 'function') {
             this.updatePreview();
         }
+    },
+
+    getTextareaSelection() {
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return null;
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const text = textarea.value;
+        const selectedText = text.substring(start, end);
+        return { textarea, start, end, text, selectedText };
+    },
+
+    insertAtCursor(before, after = '', defaultText = '') {
+        const sel = this.getTextareaSelection();
+        if (!sel) return;
+        const { textarea, start, end, selectedText } = sel;
+        const content = selectedText || defaultText;
+        const replacement = before + content + after;
+
+        textarea.focus();
+        textarea.setRangeText(replacement, start, end, 'select');
+
+        if (!selectedText && defaultText) {
+            textarea.setSelectionRange(start + before.length, start + before.length + defaultText.length);
+        } else {
+            const nextPos = start + replacement.length;
+            textarea.setSelectionRange(nextPos, nextPos);
+        }
+
+        this.updatePreview();
+    },
+
+    applyFormat(type) {
+        const isEn = document.body.classList.contains('en-mode');
+        switch (type) {
+            case 'bold':
+                this.insertAtCursor('**', '**', isEn ? 'Bold Text' : 'Kalın Metin');
+                break;
+            case 'italic':
+                this.insertAtCursor('*', '*', isEn ? 'Italic Text' : 'İtalik Metin');
+                break;
+            case 'center':
+                this.insertAtCursor('[C]', '', isEn ? 'Centered Text' : 'Ortalanmış Metin');
+                break;
+            case 'right':
+                this.insertAtCursor('[R]', '', isEn ? 'Right Aligned Text' : 'Sağa Yaslı Metin');
+                break;
+            case 'box': {
+                const sel = this.getTextareaSelection();
+                const needsLeadingNL = sel && sel.start > 0 && sel.text[sel.start - 1] !== '\n';
+                const needsTrailingNL = sel && sel.end < sel.text.length && sel.text[sel.end] !== '\n';
+                const prefix = (needsLeadingNL ? '\n' : '') + '[BOX]\n';
+                const suffix = '\n[/BOX]' + (needsTrailingNL ? '\n' : '\n');
+                this.insertAtCursor(prefix, suffix, isEn ? 'Box Content' : 'Kutu İçeriği');
+                break;
+            }
+            case 'bullet': {
+                const sel = this.getTextareaSelection();
+                const needsLeadingNL = sel && sel.start > 0 && sel.text[sel.start - 1] !== '\n';
+                const prefix = (needsLeadingNL ? '\n' : '') + '* ';
+                this.insertAtCursor(prefix, '', isEn ? 'Bullet item' : 'Madde Metni');
+                break;
+            }
+        }
+    },
+
+    applySize(val) {
+        if (!val) return;
+        const isEn = document.body.classList.contains('en-mode');
+        this.insertAtCursor(`[${val}]`, '', isEn ? 'Heading Text' : 'Başlık Metni');
+    },
+
+    insertDivider(type) {
+        if (!type) return;
+        let dividerLine = '--------------------------------';
+        if (type === '===') dividerLine = '================================';
+        else if (type === '~~~') dividerLine = '~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~';
+        else if (type === '...') dividerLine = '................................';
+
+        const sel = this.getTextareaSelection();
+        if (!sel) return;
+        const { textarea, start, end, text } = sel;
+
+        const needsLeadingNL = start > 0 && text[start - 1] !== '\n';
+        const needsTrailingNL = end < text.length && text[end] !== '\n';
+
+        const insertStr = (needsLeadingNL ? '\n' : '') + dividerLine + (needsTrailingNL ? '\n' : '\n');
+
+        textarea.focus();
+        textarea.setRangeText(insertStr, start, end, 'end');
+        this.updatePreview();
+    },
+
+    insertDateTime() {
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const dateStr = `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+        this.insertAtCursor(dateStr, '');
+    },
+
+    promptInsertQR() {
+        const isEn = document.body.classList.contains('en-mode');
+        const msg = isEn ? "Enter text or web URL for QR code:" : "QR koda dönüştürülecek metin veya web bağlantısını girin:";
+        const text = prompt(msg, "https://");
+        if (!text || text.trim() === '') return;
+        const clean = text.trim();
+        const sel = this.getTextareaSelection();
+        if (!sel) return;
+        const { start, end, text: curText } = sel;
+        const needsLeadingNL = start > 0 && curText[start - 1] !== '\n';
+        const needsTrailingNL = end < curText.length && curText[end] !== '\n';
+        const qrTag = `${needsLeadingNL ? '\n' : ''}[C][QR:${clean}|0|0|0|0|0.6]${needsTrailingNL ? '\n' : '\n'}`;
+        this.insertAtCursor(qrTag, '');
+    },
+
+    promptInsertBarcode() {
+        const isEn = document.body.classList.contains('en-mode');
+        const msg = isEn ? "Enter barcode data (CODE128):" : "Barkod verisini girin (CODE128):";
+        const code = prompt(msg, "1234567890");
+        if (!code || code.trim() === '') return;
+        const clean = code.trim();
+        const sel = this.getTextareaSelection();
+        if (!sel) return;
+        const { start, end, text: curText } = sel;
+        const needsLeadingNL = start > 0 && curText[start - 1] !== '\n';
+        const needsTrailingNL = end < curText.length && curText[end] !== '\n';
+        const bcTag = `${needsLeadingNL ? '\n' : ''}[C][CODE128:${clean}|0|0|0|0|1.2]${needsTrailingNL ? '\n' : '\n'}`;
+        this.insertAtCursor(bcTag, '');
+    },
+
+    insertSampleTable() {
+        const sel = this.getTextareaSelection();
+        if (!sel) return;
+        const { start, end, text: curText } = sel;
+        const needsLeadingNL = start > 0 && curText[start - 1] !== '\n';
+        const needsTrailingNL = end < curText.length && curText[end] !== '\n';
+        const isEn = document.body.classList.contains('en-mode');
+        const sample = isEn
+            ? `${needsLeadingNL ? '\n' : ''}| Item | Qty | Price |\n| Apple | 2 | $4.00 |\n| Orange | 1 | $2.50 |${needsTrailingNL ? '\n' : '\n'}`
+            : `${needsLeadingNL ? '\n' : ''}| Ürün | Adet | Fiyat |\n| Çilek | 2 | 50 TL |\n| Elma | 1 | 30 TL |${needsTrailingNL ? '\n' : '\n'}`;
+        this.insertAtCursor(sample, '');
+    },
+
+    async refreshPrinterStatus() {
+        if (!this.currentDriver) return;
+        const badgeStatus = document.getElementById('badgeStatus');
+        const oldText = badgeStatus ? badgeStatus.innerText : '';
+        const isEn = document.body.classList.contains('en-mode');
+        if (badgeStatus) badgeStatus.innerText = isEn ? '⏳ Refreshing...' : '⏳ Yenileniyor...';
+        try {
+            if (typeof this.currentDriver.updateStatus === 'function') {
+                await this.currentDriver.updateStatus();
+            }
+        } catch (e) {
+            console.warn("Durum yenilenemedi:", e);
+            if (badgeStatus) badgeStatus.innerText = oldText;
+        }
+    },
+
+    updatePaperMetrics() {
+        const canvas = document.getElementById('mainCanvas');
+        if (!canvas) return;
+        const h = canvas.height;
+        const cm = (h / 80).toFixed(1);
+        const sec = (h / 350).toFixed(1);
+        
+        const mLength = document.getElementById('metricLength');
+        const mTime = document.getElementById('metricTime');
+        const mDots = document.getElementById('metricDots');
+        
+        if (mLength) mLength.innerText = `📏 ~${cm} cm`;
+        if (mTime) mTime.innerText = `⏱️ ~${sec} sn`;
+        if (mDots) mDots.innerText = `384×${h} px`;
+    },
+
+    saveDraft() {
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return;
+        try {
+            localStorage.setItem('mxw01_editor_draft', textarea.value);
+            const statusEl = document.getElementById('autoSaveStatus');
+            if (statusEl) {
+                const isEn = document.body.classList.contains('en-mode');
+                statusEl.innerText = isEn ? '💾 Draft saved' : '💾 Taslak kaydedildi';
+                statusEl.style.opacity = '1';
+                setTimeout(() => { if (statusEl) statusEl.style.opacity = '0.7'; }, 1000);
+            }
+        } catch (e) {}
+    },
+
+    loadDraft() {
+        try {
+            const draft = localStorage.getItem('mxw01_editor_draft');
+            if (draft !== null && draft.trim() !== '') {
+                const textarea = document.getElementById('textInput');
+                if (textarea) textarea.value = draft;
+            }
+        } catch (e) {}
+    },
+
+    clearEditor() {
+        const isEn = document.body.classList.contains('en-mode');
+        if (confirm(isEn ? "Clear all editor content?" : "Tüm düzenleyici içeriğini temizlemek istiyor musunuz?")) {
+            const textarea = document.getElementById('textInput');
+            if (textarea) {
+                textarea.value = '';
+                this.saveDraft();
+                this.updatePreview();
+            }
+        }
+    },
+
+    resetDefaultTemplate() {
+        const isEn = document.body.classList.contains('en-mode');
+        if (confirm(isEn ? "Reset to default receipt template?" : "Varsayılan fiş şablonuna dönmek istiyor musunuz?")) {
+            const textarea = document.getElementById('textInput');
+            const defaultTpl = `[C][S:38][W:900]**MEMONEX 3D**
+================================
+* Alışverişiniz için teşekkürler!
+* Memnun kaldıysanız değerli
+* yorumlarınızı paylaşmanız
+* bizi çok mutlu eder. ❤︎
+--------------------------------
+[C][S:28]- 0531 208 48 97 -
+[C][QR:memonex3d.com|0|0|0|0|0.6]
+[C][S:20]memonex3d.com`;
+            if (textarea) {
+                textarea.value = defaultTpl;
+                this.saveDraft();
+                this.updatePreview();
+            }
+        }
+    },
+
+    downloadReceiptImage() {
+        const canvas = document.getElementById('mainCanvas');
+        if (!canvas) return;
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const filename = `termal_fis_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.png`;
+
+        const link = document.createElement('a');
+        link.download = filename;
+        link.href = canvas.toDataURL('image/png');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 };
 
+window.App = App;
 window.onload = () => App.init();

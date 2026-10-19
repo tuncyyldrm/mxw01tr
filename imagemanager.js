@@ -201,44 +201,77 @@ ImageManager.importImage = async function(source, customId = null) {
     let id = customId || (typeof source === 'string' ? source.trim() : `img_${Date.now()}`);
     if (typeof id === 'string') id = id.replace(/\|/g, '%7C');
     
-    let blob;
+    let blob = null;
     try {
         if (source instanceof File || source instanceof Blob) {
             blob = source;
         } else if (typeof source === 'string') {
-            const isDataUrl = source.startsWith('data:');
-            if (isDataUrl) {
-                const res = await fetch(source);
+            const trimmed = source.trim();
+
+            if (trimmed.startsWith('data:')) {
+                const res = await fetch(trimmed);
                 blob = await res.blob();
             } else {
-                // Doğrudan fetch dene
+                // 1. Kademe: Doğrudan fetch (Aynı origin veya CORS başlığı bulunan sunucular)
                 try {
-                    const response = await fetch(source);
-                    if (!response.ok) throw new Error('HTTP ' + response.status);
-                    blob = await response.blob();
-                } catch (fetchErr) {
-                    // CORS engeli veya dosya protokolü için Image nesnesi fallback'i
-                    blob = await new Promise((resolve, reject) => {
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
-                        img.onload = () => {
-                            const c = document.createElement('canvas');
-                            c.width = img.naturalWidth || img.width;
-                            c.height = img.naturalHeight || img.height;
-                            const ctx = c.getContext('2d');
-                            ctx.drawImage(img, 0, 0);
-                            c.toBlob(b => {
-                                if (b) resolve(b);
-                                else reject(new Error("Canvas blob hatası"));
-                            }, 'image/png');
-                        };
-                        img.onerror = () => reject(new Error("Görsel URL adresinden alınamadı (CORS engeli veya geçersiz bağlantı)"));
-                        img.src = source;
-                    });
+                    const response = await fetch(trimmed, { mode: 'cors' });
+                    if (response.ok) {
+                        blob = await response.blob();
+                    }
+                } catch (e1) {}
+
+                // 2. Kademe: Canvas Image nesnesi ile doğrudan yükleme
+                if (!blob) {
+                    try {
+                        blob = await new Promise((resolve, reject) => {
+                            const img = new Image();
+                            img.crossOrigin = 'anonymous';
+                            img.onload = () => {
+                                try {
+                                    const c = document.createElement('canvas');
+                                    c.width = img.naturalWidth || img.width;
+                                    c.height = img.naturalHeight || img.height;
+                                    const ctx = c.getContext('2d');
+                                    ctx.drawImage(img, 0, 0);
+                                    c.toBlob(b => b ? resolve(b) : reject(new Error("Canvas blob hatası")), 'image/png');
+                                } catch (e) {
+                                    reject(e);
+                                }
+                            };
+                            img.onerror = () => reject(new Error("Direct image error"));
+                            img.src = trimmed;
+                        });
+                    } catch (e2) {}
+                }
+
+                // 3. Kademe: Cloudflare Weserv CORS Image Proxy (Bütün harici görseller için CORS engelini aşar)
+                if (!blob && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                    try {
+                        const weservUrl = `https://images.weserv.nl/?url=${encodeURIComponent(trimmed)}&output=png`;
+                        const resProxy = await fetch(weservUrl);
+                        if (resProxy.ok) {
+                            blob = await resProxy.blob();
+                        }
+                    } catch (e3) {}
+                }
+
+                // 4. Kademe: Alternatif Codetabs CORS Proxy
+                if (!blob && (trimmed.startsWith('http://') || trimmed.startsWith('https://'))) {
+                    try {
+                        const codetabsUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(trimmed)}`;
+                        const resProxy2 = await fetch(codetabsUrl);
+                        if (resProxy2.ok) {
+                            blob = await resProxy2.blob();
+                        }
+                    } catch (e4) {}
                 }
             }
         }
         
+        if (!blob) {
+            throw new Error("Görsel URL adresinden alınamadı (Bağlantı geçersiz veya sunucu erişime kapalı). Görseli bilgisayarınızdan yükleyebilir veya Ctrl+V ile yapıştırabilirsiniz.");
+        }
+
         await this.process(blob, id);
         if (!customId) {
             // Eğer yeni bir resimse (manuel eklenmişse) editöre tag'ini ekle
@@ -251,7 +284,13 @@ ImageManager.importImage = async function(source, customId = null) {
         return id;
     } catch (err) { 
         console.error("Görsel yükleme hatası:", err);
-        alert("Görsel yüklenemedi: " + (err.message || err));
+        if (!customId) {
+            const isEn = typeof document !== 'undefined' && document.body && document.body.classList.contains('en-mode');
+            const alertMsg = isEn 
+                ? "Failed to load image from URL (Blocked by server or invalid link). You can upload the image from your computer or paste it with Ctrl+V."
+                : "Görsel URL adresinden alınamadı (CORS engeli veya geçersiz bağlantı). Görseli 'Dosya Yükle' butonuyla seçebilir veya doğrudan Ctrl+V ile yapıştırabilirsiniz.";
+            alert(alertMsg);
+        }
     }
 };
 

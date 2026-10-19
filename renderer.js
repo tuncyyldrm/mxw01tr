@@ -142,6 +142,23 @@ const Renderer = {
         const PADDING = 4;
         const colWidth = (CANVAS_WIDTH - 10) / columns.length;
 
+        // Markdown tablo ayraç satırı kontrolü: |---|---|---|
+        const isHeaderDivider = columns.every(c => /^[-:]+$/.test(c));
+        if (isHeaderDivider) {
+            if (isReal) {
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.strokeStyle = '#000';
+                this.ctx.lineWidth = 1;
+                this.ctx.setLineDash([2, 2]);
+                this.ctx.moveTo(5, currentY + 4);
+                this.ctx.lineTo(CANVAS_WIDTH - 5, currentY + 4);
+                this.ctx.stroke();
+                this.ctx.restore();
+            }
+            return 8;
+        }
+
         if (isReal) {
             this.ctx.save();
             this.ctx.font = `600 ${this.style.fontSize}px ${this.style.fontFamily}, sans-serif`;
@@ -156,15 +173,18 @@ const Renderer = {
                     text = text.substring(0, text.length - 1);
                 }
 
-                this.ctx.fillText(text, x + PADDING - 0.15, currentY);
-                this.ctx.fillText(text, x + PADDING + 0.15, currentY);
+                const isLastCol = (index === columns.length - 1);
+                const textWidth = this.ctx.measureText(text).width;
+                const drawX = isLastCol ? (x + colWidth - PADDING - textWidth) : (x + PADDING);
+
+                this.ctx.fillText(text, drawX, currentY);
                 
                 if (index > 0) {
                     this.ctx.beginPath();
                     this.ctx.setLineDash([2, 2]);
                     this.ctx.moveTo(x, currentY - 2);
                     this.ctx.lineTo(x, currentY + (this.style.fontSize * this.style.lineSpacing));
-                    this.ctx.strokeStyle = '#666';
+                    this.ctx.strokeStyle = '#888';
                     this.ctx.stroke();
                 }
             });
@@ -273,14 +293,15 @@ const Renderer = {
         }
 
         this.lastRenderedPositions = {};
-        const { fontSize, lineSpacing, offsetX, fontFamily } = params;
+        const { fontSize, lineSpacing, offsetX, fontFamily, bottomMargin } = params;
         
         this.style = { 
             fontSize, 
             lineSpacing, 
             offsetX: offsetX || 0, 
             fontFamily: fontFamily || 'Arial', 
-            currentSize: fontSize 
+            currentSize: fontSize,
+            bottomMargin: bottomMargin !== undefined ? parseInt(bottomMargin) : 25
         };
         
         const lines = text.split('\n');
@@ -331,13 +352,13 @@ const Renderer = {
                     return;
                 }
 
-                if (cleanLine.startsWith('[BOX')) {
+                if (/^\[BOX/i.test(cleanLine)) {
                     boxStartY = currentY;
-                    currentBoxType = cleanLine.includes(':dots') ? 'dots' : 'solid';
+                    currentBoxType = /:dots/i.test(cleanLine) ? 'dots' : 'solid';
                     currentY += 10;
                     return;
                 }
-                if (cleanLine.includes('[/BOX]')) {
+                if (/\[\/BOX\]/i.test(cleanLine)) {
                     if (isReal && boxStartY !== null) {
                         this.ctx.save();
                         this.ctx.lineWidth = 2;
@@ -355,20 +376,32 @@ const Renderer = {
                 
                 if (cleanLine.startsWith('# ')) { sizeMult = 1.6; isBold = true; cleanLine = cleanLine.substring(2); }
                 else if (cleanLine.startsWith('## ')) { sizeMult = 1.3; isBold = true; cleanLine = cleanLine.substring(3); }
-                else if (cleanLine.startsWith('* ')) { bullet = '•'; indent = 20; cleanLine = cleanLine.substring(2); }
+                else if (cleanLine.startsWith('### ')) { sizeMult = 1.15; isBold = true; cleanLine = cleanLine.substring(4); }
+                else if (cleanLine.startsWith('* ') || cleanLine.startsWith('- ')) { 
+                    bullet = '•'; 
+                    indent = 20; 
+                    cleanLine = cleanLine.substring(2); 
+                } else {
+                    const numMatch = cleanLine.match(/^(\d+)\.\s+/);
+                    if (numMatch) {
+                        bullet = numMatch[1] + '.';
+                        indent = 22;
+                        cleanLine = cleanLine.substring(numMatch[0].length);
+                    }
+                }
 
-                let sizeMatch = cleanLine.match(/\[S:(\d+)\]/);
-                let weightMatch = cleanLine.match(/\[W:(\d+)\]/);
-                let isCentered = cleanLine.includes('[C]');
-                let isRight = cleanLine.includes('[R]');
-                let isMonospace = cleanLine.includes('[M]');
+                let sizeMatch = cleanLine.match(/\[S:(\d+)\]/i);
+                let weightMatch = cleanLine.match(/\[W:(\d+)\]/i);
+                let isCentered = /\[C\]/i.test(cleanLine);
+                let isRight = /\[R\]/i.test(cleanLine);
+                let isMonospace = /\[M\]/i.test(cleanLine);
 
                 let lineSize = sizeMatch ? parseInt(sizeMatch[1]) : this.style.fontSize;
                 let fontWeight = weightMatch ? weightMatch[1] : (isBold ? '900' : '600');
                 
-                cleanLine = cleanLine.replace(/\[S:\d+\]/g, '')
-                                     .replace(/\[W:\d+\]/g, '')
-                                     .replace(/\[C\]|\[R\]|\[M\]/g, '')
+                cleanLine = cleanLine.replace(/\[S:\d+\]/gi, '')
+                                     .replace(/\[W:\d+\]/gi, '')
+                                     .replace(/\[C\]|\[R\]|\[M\]/gi, '')
                                      .trim();
 
                 const finalSize = lineSize * sizeMult;
@@ -417,7 +450,8 @@ const Renderer = {
         
         // Pas 1: Yükseklik hesapla
         const totalH = drawLoop(false);
-        this.canvas.height = Math.max(100, Math.ceil(totalH + 20));
+        const bMargin = this.style.bottomMargin !== undefined ? this.style.bottomMargin : 25;
+        this.canvas.height = Math.max(100, Math.ceil(totalH + bMargin));
 
         // Pas 2: Çizim yap
         this.ctx.save();
@@ -429,26 +463,47 @@ const Renderer = {
     },
 
     wrapText(text, maxWidth) {
+        if (!text || text.trim() === '') return [];
         const words = text.split(' ');
-        if (words.length === 0 || text.trim() === '') return [];
-
         const lines = [];
-        let currentLine = words[0];
+        let currentLine = '';
 
-        for (let i = 1; i < words.length; i++) {
+        for (let i = 0; i < words.length; i++) {
             const word = words[i];
-            const testLine = currentLine + " " + word;
+            
+            // Eğer tek bir kelime maxWidth'ten genişse (örn: uzun takip kodu, URL), harf harf böl
+            const wordMeasure = this.ctx.measureText(word.replace(/\*\*|\*|_/g, '')).width;
+            if (wordMeasure > maxWidth) {
+                if (currentLine) {
+                    lines.push(currentLine);
+                    currentLine = '';
+                }
+                let charChunk = '';
+                for (let ch of word) {
+                    const testChunk = charChunk + ch;
+                    if (this.ctx.measureText(testChunk.replace(/\*\*|\*|_/g, '')).width <= maxWidth) {
+                        charChunk = testChunk;
+                    } else {
+                        lines.push(charChunk);
+                        charChunk = ch;
+                    }
+                }
+                if (charChunk) currentLine = charChunk;
+                continue;
+            }
+
+            const testLine = currentLine ? (currentLine + " " + word) : word;
             const measureLine = testLine.replace(/\*\*|\*|_/g, '');
             const width = this.ctx.measureText(measureLine).width;
             
-            if (width < maxWidth) {
+            if (width <= maxWidth) {
                 currentLine = testLine;
             } else {
-                lines.push(currentLine);
+                if (currentLine) lines.push(currentLine);
                 currentLine = word;
             }
         }
-        lines.push(currentLine);
+        if (currentLine) lines.push(currentLine);
         return lines;
     },
 
@@ -473,11 +528,16 @@ const Renderer = {
                     this.ctx.fillText(bullet, x - 15, y);
                 }
                 
-                this.ctx.fillText(chunk, currentX - 0.15, y);
-                this.ctx.fillText(chunk, currentX + 0.15, y);
-                
-                if (size > 24) {
-                    this.ctx.fillText(chunk, currentX, y + 0.15);
+                if (activeStyles.bold) {
+                    // Kalın metin için net termal doygunluk
+                    this.ctx.fillText(chunk, currentX - 0.2, y);
+                    this.ctx.fillText(chunk, currentX + 0.2, y);
+                    if (size > 24) {
+                        this.ctx.fillText(chunk, currentX, y + 0.2);
+                    }
+                } else {
+                    // Normal metin için tek geçişli, pürüzsüz ve keskin çizim
+                    this.ctx.fillText(chunk, currentX, y);
                 }
             }
             

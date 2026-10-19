@@ -5,6 +5,9 @@ class LefuxinDriver {
         this.device = null;
         this.ctrl = null;
         this.data = null;
+        this.notify = null;
+        this.pendingResolvers = new Map();
+        this.batteryLevel = null;
     }
 
     async connect(existingDevice = null) {
@@ -45,11 +48,12 @@ class LefuxinDriver {
             const services = await server.getPrimaryServices();
             this.ctrl = null;
             this.data = null;
+            this.notify = null;
 
-            // AE01/AE03 veya AF01/AF03 kontrol kanallarını ara
+            // AE01/AE03 kontrol/veri ve AE02 bildirim kanalını ara
             for (let service of services) {
                 try {
-                    let c = null, d = null;
+                    let c = null, d = null, n = null;
                     try {
                         c = await service.getCharacteristic('0000ae01-0000-1000-8000-00805f9b34fb');
                         d = await service.getCharacteristic('0000ae03-0000-1000-8000-00805f9b34fb');
@@ -57,11 +61,35 @@ class LefuxinDriver {
                         c = await service.getCharacteristic('0000af01-0000-1000-8000-00805f9b34fb');
                         d = await service.getCharacteristic('0000af03-0000-1000-8000-00805f9b34fb');
                     }
+
+                    try {
+                        n = await service.getCharacteristic('0000ae02-0000-1000-8000-00805f9b34fb');
+                    } catch (e2) {
+                        try {
+                            n = await service.getCharacteristic('0000af02-0000-1000-8000-00805f9b34fb');
+                        } catch (e3) {}
+                    }
                     
                     if (c && d) {
                         this.ctrl = c;
                         this.data = d;
+                        this.notify = n;
+
+                        if (this.notify) {
+                            try {
+                                await this.notify.startNotifications();
+                                this.notify.addEventListener('characteristicvaluechanged', (e) => this._handleNotification(e));
+                                console.log("✅ Bildirim kanalı (AE02) aktif.");
+                            } catch (eNotif) {
+                                console.warn("AE02 bildirim başlatılamadı:", eNotif);
+                            }
+                        }
+
                         console.log("✅ Yazıcı kontrol kanalları hazır:", service.uuid);
+                        
+                        // Bağlandıktan kısa süre sonra pil ve durum sorgula
+                        setTimeout(() => this.updateStatus(), 500);
+
                         return this.device.name || "MXW01 Yazıcı";
                     }
                 } catch (e) {
@@ -86,30 +114,143 @@ class LefuxinDriver {
         return c;
     }
 
+    async _send(id, p) {
+        const d = new Uint8Array(p);
+        const pkt = new Uint8Array([0x22, 0x21, id, 0x00, d.length & 0xFF, (d.length >> 8) & 0xFF, ...d, this._crc(d), 0xFF]);
+        await this.ctrl.writeValueWithoutResponse(pkt);
+        await new Promise(r => setTimeout(r, 50));
+    }
+
+    _handleNotification(event) {
+        const data = new Uint8Array(event.target.value.buffer);
+        if (data.length < 6 || data[0] !== 0x22 || data[1] !== 0x21) return;
+
+        const cmdId = data[2];
+        const len = data[4] | (data[5] << 8);
+        const payload = data.slice(6, 6 + len);
+
+        // Canlı bildirimleri otomatik yakala ve UI rozetini güncelle
+        if (cmdId === 0xA1 && payload.length >= 10) {
+            const battery = payload[9];
+            const temp = payload.length >= 11 ? payload[10] : null;
+            const isError = payload.length >= 13 && payload[12] !== 0;
+            const errorCode = isError && payload.length >= 14 ? payload[13] : 0;
+            const noPaper = isError && (errorCode === 1 || errorCode === 9);
+            if (battery !== null) this.batteryLevel = battery;
+            if (typeof App !== 'undefined' && App.onPrinterStatus) {
+                App.onPrinterStatus({
+                    name: this.device ? this.device.name : 'MXW01',
+                    battery: battery,
+                    noPaper: noPaper,
+                    temp: temp
+                });
+            }
+        } else if (cmdId === 0xAB && payload.length > 0) {
+            this.batteryLevel = payload[0];
+            if (typeof App !== 'undefined' && App.onPrinterStatus) {
+                App.onPrinterStatus({
+                    name: this.device ? this.device.name : 'MXW01',
+                    battery: payload[0],
+                    noPaper: false
+                });
+            }
+        }
+
+        const resolver = this.pendingResolvers.get(cmdId);
+        if (resolver) {
+            resolver(payload);
+            this.pendingResolvers.delete(cmdId);
+        }
+    }
+
+    _waitForNotification(cmdId, timeoutMs = 3500) {
+        return new Promise((resolve) => {
+            const timer = setTimeout(() => {
+                this.pendingResolvers.delete(cmdId);
+                resolve(null);
+            }, timeoutMs);
+
+            this.pendingResolvers.set(cmdId, (payload) => {
+                clearTimeout(timer);
+                resolve(payload);
+            });
+        });
+    }
+
+    async getBatteryLevel() {
+        if (!this.ctrl || !this.notify) return null;
+        try {
+            await this._send(0xAB, [0x00]);
+            const payload = await this._waitForNotification(0xAB, 2500);
+            if (payload && payload.length > 0) {
+                this.batteryLevel = payload[0];
+                return this.batteryLevel;
+            }
+        } catch (e) {
+            console.warn("0xAB pil sorgulama hatası:", e);
+        }
+
+        const status = await this.getPrinterStatus();
+        return status ? status.battery : null;
+    }
+
+    async getPrinterStatus() {
+        if (!this.ctrl || !this.notify) return null;
+        try {
+            await this._send(0xA1, [0x00]);
+            const payload = await this._waitForNotification(0xA1, 2500);
+            if (payload) {
+                const battery = payload.length >= 10 ? payload[9] : null;
+                const temp = payload.length >= 11 ? payload[10] : null;
+                const isError = payload.length >= 13 && payload[12] !== 0;
+                const errorCode = isError && payload.length >= 14 ? payload[13] : 0;
+                const noPaper = isError && (errorCode === 1 || errorCode === 9);
+                if (battery !== null) this.batteryLevel = battery;
+                return { battery, temp, isError, errorCode, noPaper };
+            }
+        } catch (e) {
+            console.warn("0xA1 durum sorgulama hatası:", e);
+        }
+        return null;
+    }
+
+    async updateStatus() {
+        try {
+            const status = await this.getPrinterStatus();
+            const battery = (status && status.battery !== null) ? status.battery : await this.getBatteryLevel();
+            if (typeof App !== 'undefined' && App.onPrinterStatus) {
+                App.onPrinterStatus({
+                    name: this.device ? this.device.name : 'MXW01',
+                    battery: battery,
+                    noPaper: status ? status.noPaper : false,
+                    temp: status ? status.temp : null
+                });
+            }
+        } catch (err) {
+            console.warn("Yazıcı durumu güncellenemedi:", err);
+        }
+    }
+
     async print(bytes, h) {
         if (!this.ctrl || !this.data) throw new Error("Yazıcıya bağlantı yok.");
         
-        const send = async (id, p) => {
-            const d = new Uint8Array(p);
-            const pkt = new Uint8Array([0x22, 0x21, id, 0x00, d.length & 0xFF, (d.length >> 8) & 0xFF, ...d, this._crc(d), 0xFF]);
-            await this.ctrl.writeValueWithoutResponse(pkt);
-            await new Promise(r => setTimeout(r, 50));
-        };
-
         // 1. Baskı başlatma / durum hazırlığı
-        await send(0xB1, [0x00]); 
+        await this._send(0xB1, [0x00]); 
         
         // 2. Baskı boyutu bilgisi: yükseklik ve satır genişliği (48 bayt = 384 dot)
-        await send(0xA9, [h & 0xFF, (h >> 8) & 0xFF, 48, 0]);
+        await this._send(0xA9, [h & 0xFF, (h >> 8) & 0xFF, 48, 0]);
         
         // 3. Raster görüntü verisini AE03 üzerinden 20 baytlık BLE paketleriyle gönder
         for (let i = 0; i < bytes.length; i += 20) {
             await this.data.writeValueWithoutResponse(bytes.slice(i, i + 20));
-            if (i % 400 === 0) await new Promise(r => setTimeout(r, 20));
+            if (i % 200 === 0) await new Promise(r => setTimeout(r, 20));
         }
         
         // 4. Veri aktarımını tamamla ve kağıdı ilerlet
-        await send(0xAD, [0x00]);
+        await this._send(0xAD, [0x00]);
+
+        // Baskı sonrası güncel pil durumunu tazele
+        setTimeout(() => this.updateStatus(), 1200);
     }
 }
 
@@ -399,14 +540,47 @@ class UniversalPrinterDriver {
         if (!this.driver) throw new Error("Sürücü başlatılmadı.");
         return await this.driver.print(bytes, h);
     }
+
+    async updateStatus() {
+        if (this.driver && typeof this.driver.updateStatus === 'function') {
+            return await this.driver.updateStatus();
+        }
+    }
 }
 
 // Sanal / Simülasyon Sürücüsü (Testler için)
 class FakeDriver {
+    constructor() {
+        this.battery = 92;
+        this.noPaper = false;
+        this.name = "Sanal MXW01 (Test)";
+    }
+
     async connect() {
         return new Promise((resolve) => {
-            setTimeout(() => resolve("Sanal Hata Ayıklama Yazıcısı (Test)"), 800);
+            setTimeout(() => {
+                if (typeof App !== 'undefined' && App.onPrinterStatus) {
+                    App.onPrinterStatus({
+                        name: this.name,
+                        battery: this.battery,
+                        noPaper: this.noPaper,
+                        temp: 28
+                    });
+                }
+                resolve("Sanal MXW01 Test Yazıcısı");
+            }, 600);
         });
+    }
+
+    async updateStatus() {
+        if (typeof App !== 'undefined' && App.onPrinterStatus) {
+            App.onPrinterStatus({
+                name: this.name,
+                battery: this.battery,
+                noPaper: this.noPaper,
+                temp: 29
+            });
+        }
     }
 
     async print(bytes, h) {
@@ -416,6 +590,8 @@ class FakeDriver {
             await new Promise(r => setTimeout(r, 150));
         }
         console.log("[FakePrint] Yazdırma başarıyla tamamlandı!");
+        if (this.battery > 5) this.battery -= 1;
+        this.updateStatus();
     }
 }
 
