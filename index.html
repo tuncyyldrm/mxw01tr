@@ -157,7 +157,8 @@
                     <select class="tool-select" onchange="App.applyTemplate(this.value); this.selectedIndex=0;" title="Hazır Şablonlar / Templates" style="font-weight: 600; color: #007bff; border-color: #b6d4fe;">
                         <option value="" disabled selected>📋 Şablonlar</option>
                         <optgroup label="📄 Dikey Şablonlar (384px)">
-                            <option value="portrait_default">🧾 Standart Satış Fişi</option>
+                            <option value="portrait_default">⭐ Orijinal MEMONEX Fişi (Varsayılan)</option>
+                            <option value="portrait_pos">🧾 Detaylı Satış & POS Fişi</option>
                             <option value="portrait_cargo">📦 Kargo Barkod Fişi</option>
                             <option value="portrait_cafe">☕ Kafe / Adisyon Fişi</option>
                         </optgroup>
@@ -234,6 +235,7 @@
                 <div class="quick-orient-toggle" title="Çıktı Yönü / Print Orientation">
                     <button type="button" class="btn-quick-orient active" id="quickOrientPortrait" onclick="App.setOrientation('portrait')" title="Dikey Format (Portrait)">📄 Dikey</button>
                     <button type="button" class="btn-quick-orient" id="quickOrientLandscape" onclick="App.setOrientation('landscape')" title="Yatay Format (Landscape)">🔄 Yatay</button>
+                    <button type="button" class="btn-quick-rotate" id="quickRotateBtn" onclick="App.cycleRotation()" title="Döndür / Rotate">⟳ <span id="quickAngleLabel">0°</span></button>
                 </div>
             </div>
             <div class="preview-actions">

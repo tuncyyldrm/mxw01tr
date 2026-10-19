@@ -135,7 +135,10 @@ const Renderer = {
     },
 
     drawTable(line, currentY, isReal) {
-        const columns = line.split('|').map(c => c.trim()).filter(c => c !== '');
+        let clean = line.trim();
+        if (clean.startsWith('|')) clean = clean.slice(1);
+        if (clean.endsWith('|')) clean = clean.slice(0, -1);
+        const columns = clean.split('|').map(c => c.trim());
         if (columns.length === 0) return 0;
 
         const CANVAS_WIDTH = this.canvasWidth || 384;
@@ -342,9 +345,7 @@ const Renderer = {
         const PADDING_X = 5;
 
         const drawLoop = (isReal) => {
-            let currentY = (isReal && this.orientation === 'landscape' && this._calculatedTotalH && this._calculatedTotalH < 350)
-                ? Math.max(5, Math.floor((384 - this._calculatedTotalH) / 2))
-                : 5;
+            let currentY = 5;
             let boxStartY = null;
             let currentBoxType = 'solid';
             this._maxVisualY = 0;

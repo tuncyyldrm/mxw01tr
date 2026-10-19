@@ -969,6 +969,24 @@ const App = {
                 fontSize: 20,
                 lineSpacing: 1.1,
                 bottomMargin: 25,
+                text: `[C][S:38][W:900]**MEMONEX 3D**
+================================
+* Alışverişiniz için teşekkürler!
+* Memnun kaldıysanız değerli
+* yorumlarınızı paylaşmanız
+* bizi çok mutlu eder. ❤︎
+--------------------------------
+[C][S:28]- 0531 208 48 97 -
+[C][QR:memonex3d.com|0|0|0|0|0.6]
+[C][S:20]memonex3d.com`
+            },
+            portrait_pos: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.1,
+                bottomMargin: 25,
                 text: `[C][S:36][W:900]**MEMONEX 3D**
 [C][S:16]Teknoloji & Tasarım Atölyesi
 ================================
@@ -1270,6 +1288,12 @@ Paket: 1 Koli / 2.4 Desi
             const btnAngle = parseInt(btn.dataset.angle);
             btn.classList.toggle('active', btnAngle === this.rotationAngle);
         });
+
+        // Hızlı rotasyon etiketi
+        const qAngleLabel = document.getElementById('quickAngleLabel');
+        if (qAngleLabel) {
+            qAngleLabel.innerText = `${this.rotationAngle}°`;
+        }
 
         this.updateViewModeUI();
     },
