@@ -159,31 +159,54 @@ const Renderer = {
             return 8;
         }
 
+        const fontStack = `${this.style.fontFamily}, sans-serif`;
+        const cellLineHeight = this.style.fontSize * this.style.lineSpacing;
+
+        // Her sütundaki metinleri saralım
+        const cellData = columns.map(col => {
+            const maxWidth = Math.max(20, colWidth - (PADDING * 2));
+            const wrapped = this.wrapText(col, maxWidth);
+            return wrapped.length > 0 ? wrapped : [''];
+        });
+
+        const maxLines = Math.max(1, ...cellData.map(c => c.length));
+        const rowHeight = maxLines * cellLineHeight;
+
         if (isReal) {
             this.ctx.save();
-            this.ctx.font = `600 ${this.style.fontSize}px ${this.style.fontFamily}, sans-serif`;
             this.ctx.imageSmoothingEnabled = false;
 
             columns.forEach((col, index) => {
                 const x = 5 + (index * colWidth);
-                
-                let text = col;
-                const maxWidth = colWidth - (PADDING * 2);
-                while (this.ctx.measureText(text).width > maxWidth && text.length > 0) {
-                    text = text.substring(0, text.length - 1);
-                }
-
                 const isLastCol = (index === columns.length - 1);
-                const textWidth = this.ctx.measureText(text).width;
-                const drawX = isLastCol ? (x + colWidth - PADDING - textWidth) : (x + PADDING);
+                const lines = cellData[index];
 
-                this.ctx.fillText(text, drawX, currentY);
-                
+                lines.forEach((tLine, lineIdx) => {
+                    const lineY = currentY + (lineIdx * cellLineHeight);
+                    const cleanTxt = tLine.replace(/\*\*|\*|_/g, '');
+                    this.ctx.font = `600 ${this.style.fontSize}px ${fontStack}`;
+                    const textWidth = this.ctx.measureText(cleanTxt).width;
+                    const drawX = (isLastCol && columns.length > 1) 
+                        ? (x + colWidth - PADDING - textWidth) 
+                        : (x + PADDING);
+
+                    this.renderStyledText(
+                        tLine,
+                        Math.round(drawX),
+                        Math.round(lineY),
+                        this.style.fontSize,
+                        fontStack,
+                        false,
+                        null,
+                        '600'
+                    );
+                });
+
                 if (index > 0) {
                     this.ctx.beginPath();
                     this.ctx.setLineDash([2, 2]);
                     this.ctx.moveTo(x, currentY - 2);
-                    this.ctx.lineTo(x, currentY + (this.style.fontSize * this.style.lineSpacing));
+                    this.ctx.lineTo(x, currentY + rowHeight);
                     this.ctx.strokeStyle = '#888';
                     this.ctx.stroke();
                 }
@@ -191,7 +214,7 @@ const Renderer = {
             this.ctx.restore();
         }
 
-        return this.style.fontSize * this.style.lineSpacing;
+        return rowHeight + 2;
     },
 
     processVisualElement(type, content, currentY, isReal, align = {}) {
@@ -319,7 +342,9 @@ const Renderer = {
         const PADDING_X = 5;
 
         const drawLoop = (isReal) => {
-            let currentY = 5;
+            let currentY = (isReal && this.orientation === 'landscape' && this._calculatedTotalH && this._calculatedTotalH < 350)
+                ? Math.max(5, Math.floor((384 - this._calculatedTotalH) / 2))
+                : 5;
             let boxStartY = null;
             let currentBoxType = 'solid';
             this._maxVisualY = 0;
@@ -459,14 +484,21 @@ const Renderer = {
         this.canvas.width = CANVAS_WIDTH;
         
         // Pas 1: Yükseklik hesapla
+        this._calculatedTotalH = 0;
         const totalH = drawLoop(false);
+        this._calculatedTotalH = totalH;
+
         const bMargin = this.style.bottomMargin !== undefined ? this.style.bottomMargin : 25;
+        const neededH = Math.ceil(totalH + bMargin);
+        this.contentHeight = neededH;
         
         if (this.orientation === 'landscape') {
             // Yatay modda termal rulo genişliği 384 dot'tur.
-            this.canvas.height = Math.max(384, Math.ceil(totalH + bMargin));
+            this.isOverflowing = (neededH > 384);
+            this.canvas.height = Math.max(384, neededH);
         } else {
-            this.canvas.height = Math.max(100, Math.ceil(totalH + bMargin));
+            this.isOverflowing = false;
+            this.canvas.height = Math.max(100, neededH);
         }
 
         // Pas 2: Çizim yap
@@ -475,6 +507,23 @@ const Renderer = {
         this.ctx.fillRect(0, 0, CANVAS_WIDTH, this.canvas.height);
 
         drawLoop(true);
+
+        // Yatay modda 384px sınırını aşan durumlarda önizlemede rulo sınır çizgisini göster
+        if (this.orientation === 'landscape' && this.isOverflowing) {
+            this.ctx.save();
+            this.ctx.strokeStyle = '#e63946';
+            this.ctx.lineWidth = 1.5;
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.beginPath();
+            this.ctx.moveTo(4, 384);
+            this.ctx.lineTo(CANVAS_WIDTH - 4, 384);
+            this.ctx.stroke();
+            this.ctx.font = 'bold 11px sans-serif';
+            this.ctx.fillStyle = '#e63946';
+            this.ctx.fillText('✂ 384px Rulo Sınırı (Kâğıda Sığdırılacaktır)', 8, 380);
+            this.ctx.restore();
+        }
+
         this.ctx.restore();
     },
 

@@ -154,6 +154,20 @@
                         <option value="~~~">Dalgalı Çizgi (~~~)</option>
                         <option value="...">Kesikli Çizgi (...)</option>
                     </select>
+                    <select class="tool-select" onchange="App.applyTemplate(this.value); this.selectedIndex=0;" title="Hazır Şablonlar / Templates" style="font-weight: 600; color: #007bff; border-color: #b6d4fe;">
+                        <option value="" disabled selected>📋 Şablonlar</option>
+                        <optgroup label="📄 Dikey Şablonlar (384px)">
+                            <option value="portrait_default">🧾 Standart Satış Fişi</option>
+                            <option value="portrait_cargo">📦 Kargo Barkod Fişi</option>
+                            <option value="portrait_cafe">☕ Kafe / Adisyon Fişi</option>
+                        </optgroup>
+                        <optgroup label="🔄 Yatay Şablonlar (Geniş)">
+                            <option value="landscape_cargo">📦 Yatay Kargo Sevk Etiketi</option>
+                            <option value="landscape_table">📊 Yatay Ürün & Fiyat Tablosu</option>
+                            <option value="landscape_shelf">🏷️ Yatay Raf & Ürün Barkodu</option>
+                            <option value="landscape_ticket">🎫 Yatay Etkinlik Bileti</option>
+                        </optgroup>
+                    </select>
                 </div>
                 <div class="toolbar-separator"></div>
                 <div class="toolbar-group">
@@ -220,21 +234,26 @@
                 <div class="quick-orient-toggle" title="Çıktı Yönü / Print Orientation">
                     <button type="button" class="btn-quick-orient active" id="quickOrientPortrait" onclick="App.setOrientation('portrait')" title="Dikey Format (Portrait)">📄 Dikey</button>
                     <button type="button" class="btn-quick-orient" id="quickOrientLandscape" onclick="App.setOrientation('landscape')" title="Yatay Format (Landscape)">🔄 Yatay</button>
-                    <button type="button" class="btn-quick-rotate" id="quickRotateBtn" onclick="App.cycleRotation()" title="90° Döndür / Rotate 90°">⟳ <span id="quickAngleLabel">0°</span></button>
                 </div>
             </div>
             <div class="preview-actions">
+                <button type="button" class="btn-preview-tool" id="btnZoomToggle" onclick="App.toggleViewMode()" title="Görünüm Ölçeği / View Mode">📐 Sığdır</button>
                 <button type="button" class="btn-preview-tool" onclick="App.downloadReceiptImage()" title="PNG Görseli Olarak İndir / Download PNG">💾 PNG</button>
                 <button type="button" class="view-real-btn" title="Gerçekçi Görünüm / Realistic View">📷</button>
             </div>
         </div>
         
-        <div class="canvas-wrapper">
+        <div class="canvas-wrapper fit-mode" id="canvasWrapper">
             <canvas id="mainCanvas"></canvas>
             <div class="paper-tear-edge"></div>
             <div id="realPhotoOverlay" class="real-photo-overlay hidden">
                 <img src="assets/real_check.jpg" id="realPhotoImg">
             </div>
+        </div>
+
+        <div id="landscapeOverflowWarning" class="overflow-warning-banner hidden">
+            <span>⚠️ İçerik 384px rulo sınırını aşıyor!</span>
+            <button type="button" class="btn-autofit-pill" onclick="App.autoFitLandscape()">📐 Otomatik Sığdır</button>
         </div>
 
         <div class="paper-metrics-bar" id="paperMetrics">
@@ -301,19 +320,29 @@
                         <button type="button" class="btn-preset" data-w="720" onclick="App.setLandscapeWidth(720)">9 cm</button>
                         <button type="button" class="btn-preset" data-w="960" onclick="App.setLandscapeWidth(960)">12 cm</button>
                     </div>
+                    <input type="range" id="landscapeWidth" min="384" max="1200" step="16" value="576" oninput="App.onLandscapeWidthChange(this.value)">
                 </div>
-                <button type="button" class="btn-action-small" onclick="App.loadLandscapeSample()" style="width: 100%; font-size: 11px; padding: 6px; border: 1px dashed #007bff; background: #f0f7ff; color: #007bff; border-radius: 4px; cursor: pointer; font-weight: 600;">
-                    📋 <span class="lang-tr">Örnek Yatay Kargo / Barkod Şablonu Yükle</span><span class="lang-en">Load Sample Landscape Template</span>
+
+                <div class="param" style="margin-bottom: 8px;">
+                    <label><span class="lang-tr">Yatay Baskı Yönü</span><span class="lang-en">Landscape Print Direction</span></label>
+                    <div class="rotation-pill-group">
+                        <button type="button" class="btn-rot-pill active" id="rotPill90" data-angle="90" onclick="App.setRotation(90)">➡️ 90° Standart</button>
+                        <button type="button" class="btn-rot-pill" id="rotPill270" data-angle="270" onclick="App.setRotation(270)">⬅️ 270° Ters</button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn-action-small" onclick="App.autoFitLandscape()" style="width: 100%; font-size: 11px; padding: 6px; border: 1px dashed #28a745; background: #eafaf1; color: #1e7e34; border-radius: 4px; cursor: pointer; font-weight: 600; margin-bottom: 6px;">
+                    📐 <span class="lang-tr">Kâğıt Yüksekliğine (384px) Otomatik Sığdır</span><span class="lang-en">Auto-fit to Paper Height</span>
                 </button>
             </div>
 
-            <div class="param">
-                <label><span class="lang-tr">Baskı Döndürme Açısı</span><span class="lang-en">Rotation Angle</span></label>
-                <div class="rotation-pill-group">
-                    <button type="button" class="btn-rot-pill active" data-angle="0" onclick="App.setRotation(0)">0° Normal</button>
-                    <button type="button" class="btn-rot-pill" data-angle="90" onclick="App.setRotation(90)">90° Yatay</button>
-                    <button type="button" class="btn-rot-pill" data-angle="180" onclick="App.setRotation(180)">180° Ters</button>
-                    <button type="button" class="btn-rot-pill" data-angle="270" onclick="App.setRotation(270)">270°</button>
+            <div id="portraitSettingsGroup" class="portrait-settings">
+                <div class="param" style="margin-bottom: 8px;">
+                    <label><span class="lang-tr">Dikey Baskı Yönü</span><span class="lang-en">Portrait Print Direction</span></label>
+                    <div class="rotation-pill-group">
+                        <button type="button" class="btn-rot-pill active" id="rotPill0" data-angle="0" onclick="App.setRotation(0)">⬇️ 0° Normal</button>
+                        <button type="button" class="btn-rot-pill" id="rotPill180" data-angle="180" onclick="App.setRotation(180)">⬆️ 180° Ters (Müşteriye)</button>
+                    </div>
                 </div>
             </div>
 

@@ -9,6 +9,7 @@ const App = {
     orientation: 'portrait',
     landscapeWidth: 576,
     rotationAngle: 0,
+    viewMode: 'fit',
     
     init() {
         this.loadDraft();
@@ -390,6 +391,12 @@ const App = {
         if (vOffsetEl) vOffsetEl.innerText = params.offsetX;
         if (vSpacingEl) vSpacingEl.innerText = params.lineSpacing;
         if (vBMarginEl) vBMarginEl.innerText = bMargin;
+
+        const warnEl = document.getElementById('landscapeOverflowWarning');
+        if (warnEl) {
+            const isLandscape = (this.orientation === 'landscape');
+            warnEl.classList.toggle('hidden', !(isLandscape && Renderer.isOverflowing));
+        }
 
         this.updatePaperMetrics();
         this.saveDraft();
@@ -847,7 +854,303 @@ const App = {
             } else {
                 this.rotationAngle = (this.orientation === 'landscape') ? 90 : 0;
             }
+            const savedView = localStorage.getItem('mxw01_view_mode');
+            if (savedView === 'fit' || savedView === 'actual') {
+                this.viewMode = savedView;
+            }
         } catch (e) {}
+    },
+
+    toggleViewMode() {
+        this.viewMode = (this.viewMode === 'fit') ? 'actual' : 'fit';
+        try {
+            localStorage.setItem('mxw01_view_mode', this.viewMode);
+        } catch (e) {}
+        this.updateViewModeUI();
+    },
+
+    updateViewModeUI() {
+        const wrapper = document.getElementById('canvasWrapper');
+        const btn = document.getElementById('btnZoomToggle');
+        const isEn = document.body.classList.contains('en-mode');
+        if (wrapper) {
+            wrapper.classList.toggle('fit-mode', this.viewMode === 'fit');
+            wrapper.classList.toggle('actual-mode', this.viewMode === 'actual');
+        }
+        if (btn) {
+            if (this.viewMode === 'fit') {
+                btn.innerText = '🔍 %100';
+                btn.title = isEn ? 'Switch to 100% Actual Size' : '%100 Gerçek Boyuta Geç';
+            } else {
+                btn.innerText = '📐 Sığdır';
+                btn.title = isEn ? 'Fit Preview to Column' : 'Önizlemeyi Sütuna Sığdır';
+            }
+        }
+    },
+
+    autoFitLandscape() {
+        if (this.orientation !== 'landscape') {
+            this.setOrientation('landscape');
+        }
+
+        const fontSizeEl = document.getElementById('fontSize');
+        const lineSpacingEl = document.getElementById('lineSpacing');
+        const bottomMarginEl = document.getElementById('bottomMargin');
+        if (!fontSizeEl || !lineSpacingEl) return;
+
+        let curFont = parseInt(fontSizeEl.value) || 20;
+        let curSpacing = parseFloat(lineSpacingEl.value) || 1.1;
+        let curMargin = bottomMarginEl ? (parseInt(bottomMarginEl.value) || 25) : 25;
+
+        const targetH = 384;
+        let currentH = (typeof Renderer !== 'undefined' && Renderer.contentHeight) 
+            ? Renderer.contentHeight 
+            : (Renderer && Renderer.canvas ? Renderer.canvas.height : 400);
+
+        if (currentH <= targetH && !(Renderer && Renderer.isOverflowing)) {
+            const isEn = document.body.classList.contains('en-mode');
+            const statusEl = document.getElementById('autoSaveStatus');
+            if (statusEl) {
+                statusEl.innerText = isEn ? '✅ Already fits within 384px limit!' : '✅ İçerik zaten 384px rulo sınırına uygun!';
+                statusEl.style.opacity = '1';
+                setTimeout(() => { if (statusEl) statusEl.style.opacity = '0.7'; }, 2000);
+            }
+            return;
+        }
+
+        // Orantılı küçültme faktörü
+        const ratio = Math.min(0.92, (targetH / currentH) * 0.96);
+        const newFont = Math.max(12, Math.floor(curFont * ratio));
+        const newSpacing = Math.max(0.7, Math.min(curSpacing, parseFloat((curSpacing * ratio).toFixed(1))));
+        const newMargin = Math.max(10, Math.floor(curMargin * ratio));
+
+        fontSizeEl.value = newFont;
+        lineSpacingEl.value = newSpacing;
+        if (bottomMarginEl) bottomMarginEl.value = newMargin;
+
+        this.updatePreview();
+
+        // 2. mikro-optimizasyon adımı
+        setTimeout(() => {
+            if (Renderer && Renderer.isOverflowing && parseInt(fontSizeEl.value) > 12) {
+                fontSizeEl.value = Math.max(12, parseInt(fontSizeEl.value) - 1);
+                if (parseFloat(lineSpacingEl.value) > 0.8) {
+                    lineSpacingEl.value = (parseFloat(lineSpacingEl.value) - 0.1).toFixed(1);
+                }
+                this.updatePreview();
+            }
+
+            const isEn = document.body.classList.contains('en-mode');
+            const statusEl = document.getElementById('autoSaveStatus');
+            if (statusEl) {
+                statusEl.innerText = isEn ? '✅ Auto-fitted to 384px roll height!' : '✅ 384px rulo yüksekliğine otomatik sığdırıldı!';
+                statusEl.style.opacity = '1';
+                setTimeout(() => { if (statusEl) statusEl.style.opacity = '0.7'; }, 2000);
+            }
+        }, 60);
+    },
+
+    applyTemplate(key) {
+        if (!key) return;
+        const textarea = document.getElementById('textInput');
+        if (!textarea) return;
+
+        const isEn = document.body.classList.contains('en-mode');
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, '0');
+        const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}`;
+        const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+        const templates = {
+            portrait_default: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 20,
+                lineSpacing: 1.1,
+                bottomMargin: 25,
+                text: `[C][S:36][W:900]**MEMONEX 3D**
+[C][S:16]Teknoloji & Tasarım Atölyesi
+================================
+[C][S:18]SATIŞ BİLGİ FİŞİ
+--------------------------------
+Tarih: ${dateStr}        Saat: ${timeStr}
+Fiş No: 2026-0042      Kasa: 01
+--------------------------------
+| Ürün | Ad | Fiyat | Toplam |
+| 3D Figür Model | 1 | 250 TL | 250 TL |
+| PLA Filament 1kg | 2 | 450 TL | 900 TL |
+| Nozzle 0.4mm Pirinç | 3 | 40 TL | 120 TL |
+--------------------------------
+[R][S:16]Ara Toplam: 1.270,00 TL
+[R][S:16]KDV (%20): 254,00 TL
+[R][S:24][W:900]**GENEL TOPLAM: 1.524,00 TL**
+================================
+[C][S:16]* Bizi tercih ettiğiniz için teşekkürler!
+[C][S:14]Değerli yorumlarınızı bekliyoruz ❤︎
+[C][QR:https://memonex3d.com|0|0|0|0|0.6]
+[C][S:16]memonex3d.com • 0531 208 48 97`
+            },
+            portrait_cargo: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.1,
+                bottomMargin: 25,
+                text: `[C][S:32][W:900]**YURTİÇİ KARGO**
+[C][S:16]STANDART GÖNDERİ SEVK FİŞİ
+================================
+[C][CODE128:YK202610190842|0|0|0|0|1.5]
+[C][S:22][W:900]**YK-2026-1019-0842**
+--------------------------------
+**GÖNDERİCİ:**
+Memonex 3D Ltd. Şti.
+Kadıköy / İstanbul - 0216 555 00 11
+--------------------------------
+**ALICI:**
+Ahmet Yılmaz
+Atatürk Mah. Cumhuriyet Cad. No:14/2
+Çankaya / Ankara
+Tel: 0532 111 22 33
+--------------------------------
+Paket: 1 Koli / 2.4 Desi
+Ödeme: Gönderici Ödemeli
+================================
+[C][QR:https://yurticikargo.com/takip/YK202610190842|0|0|0|0|0.5]
+[C][S:14]Kargo Takip için QR Kodu Okutunuz`
+            },
+            portrait_cafe: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.1,
+                bottomMargin: 25,
+                text: `[C][S:34][W:900]**COFFEE & BAKERY**
+[C][S:16]Artisan Roasters & Cafe
+================================
+[C][S:22][W:900]**MASA: 07**
+[C][S:16]Garson: Deniz • ${dateStr} ${timeStr}
+--------------------------------
+| Sipariş | Ad | Fiyat |
+| Flat White (Yulaf Sütü) | 2 | 240 TL |
+| San Sebastian Cheesecake | 1 | 185 TL |
+| Filtre Kahve (Büyük) | 1 | 95 TL |
+| Su (Cam Şişe) | 2 | 60 TL |
+--------------------------------
+[R][S:16]Ara Toplam: 580,00 TL
+[R][S:16]Servis (%10): 58,00 TL
+[R][S:24][W:900]**TOPLAM: 638,00 TL**
+================================
+[C][S:16]Wi-Fi: CoffeeGuest / Şifre: espresso2026
+[C][QR:https://instagram.com|0|0|0|0|0.5]
+[C][S:14]Afiyet Olsun! Bizi etiketleyin @cafename`
+            },
+            landscape_cargo: {
+                orientation: 'landscape',
+                width: 640,
+                rotation: 90,
+                fontSize: 18,
+                lineSpacing: 1.0,
+                bottomMargin: 20,
+                text: `[C][S:30][W:900]**TRENDYOL EXPRESS - HIZLI SEVK ETİKETİ**
+============================================================
+| GÖNDERİCİ: Memonex 3D San. Tic. | TARİH: ${dateStr} | DESİ: 1.5 |
+| TAKİP NO: 7248 1092 8472        | ÇIKIŞ: İST-KADIKÖY MERKEZ |
+------------------------------------------------------------
+[C][CODE128:724810928472|0|0|0|0|1.8]
+[C][S:24][W:900]**7248 1092 8472**
+------------------------------------------------------------
+| ALICI: Zeynep Kaya             | TEL: 0544 987 65 43       |
+| ADRES: Barbaros Bulv. No:88 D:5 Beşiktaş / İstanbul        |
+============================================================`
+            },
+            landscape_table: {
+                orientation: 'landscape',
+                width: 720,
+                rotation: 90,
+                fontSize: 16,
+                lineSpacing: 1.0,
+                bottomMargin: 20,
+                text: `[C][S:28][W:900]**HAFTALIK MANAV & MARKET FİYAT LİSTESİ**
+[C][S:16]Güncelleme Tarihi: ${dateStr} • Taze ve Yerli Ürünler
+============================================================
+| Ürün Kodu | Ürün Adı | Menşei | Birim | Fiyat |
+| MNV-01 | Amasya Elması (Kırmızı) | Amasya | Kg | 45,00 TL |
+| MNV-02 | Finike Portakalı | Antalya | Kg | 35,00 TL |
+| MNV-03 | Yerli Muz (Anamur) | Mersin | Kg | 85,00 TL |
+| MNV-04 | Deveci Armudu | Bursa | Kg | 60,00 TL |
+| MNV-05 | Çilek (Kokulu Sera) | Aydın | Paket | 70,00 TL |
+============================================================
+[C][S:16]**Tüm fiyatlarımıza KDV dahildir. • İyi Alışverişler Dileriz!**`
+            },
+            landscape_shelf: {
+                orientation: 'landscape',
+                width: 576,
+                rotation: 90,
+                fontSize: 18,
+                lineSpacing: 1.0,
+                bottomMargin: 20,
+                text: `[C][S:32][W:900]**PREMIUM KABLOSUZ GAMING MOUSE**
+[C][S:18]RGB Aydınlatmalı • 16000 DPI • Çift Modlu Bağlantı
+============================================================
+| REYON: 04-A | RAF: 2 | KDV DAHİL FİYAT: **899,00 TL** |
+------------------------------------------------------------
+[C][CODE128:8690123456789|0|0|0|0|1.6]
+[C][S:22][W:900]**8690123456789**
+------------------------------------------------------------
+| Üretim: Türkiye | Son Değişiklik: ${dateStr} | Garanti: 2 Yıl |
+============================================================`
+            },
+            landscape_ticket: {
+                orientation: 'landscape',
+                width: 640,
+                rotation: 90,
+                fontSize: 17,
+                lineSpacing: 1.0,
+                bottomMargin: 20,
+                text: `[C][S:30][W:900]**TEKNOLOJİ VE İNOVASYON ZİRVESİ 2026**
+[C][S:18]Giriş Kartı & Katılımcı Akreditasyonu
+============================================================
+| KATILIMCI: Dr. Selim Özkan | FİRMA: Alpha Bilişim Ltd.    |
+| KATEGORİ: VIP Konuşmacı     | SALON: Ana Konferans A      |
+------------------------------------------------------------
+[C][QR:TICKET-VIP-2026-SELIM-OZKAN|0|0|0|0|0.7]
+[C][S:20][W:900]**KOD: VIP-99420-TK**
+------------------------------------------------------------
+| Tarih: ${dateStr} | Saat: 09:30 | Yer: Kongre Merkezi Haliç |
+============================================================`
+            }
+        };
+
+        const tpl = templates[key];
+        if (!tpl) return;
+
+        textarea.value = tpl.text;
+
+        const fontSizeEl = document.getElementById('fontSize');
+        const lineSpacingEl = document.getElementById('lineSpacing');
+        const bottomMarginEl = document.getElementById('bottomMargin');
+        if (fontSizeEl && tpl.fontSize) fontSizeEl.value = tpl.fontSize;
+        if (lineSpacingEl && tpl.lineSpacing) lineSpacingEl.value = tpl.lineSpacing;
+        if (bottomMarginEl && tpl.bottomMargin) bottomMarginEl.value = tpl.bottomMargin;
+
+        if (tpl.orientation === 'landscape') {
+            this.landscapeWidth = tpl.width || 576;
+            this.setOrientation('landscape');
+            this.setRotation(tpl.rotation || 90);
+        } else {
+            this.setOrientation('portrait');
+            this.setRotation(tpl.rotation || 0);
+        }
+
+        this.saveDraft();
+        this.updatePreview();
+    },
+
+    loadLandscapeSample() {
+        this.applyTemplate('landscape_cargo');
     },
 
     setOrientation(mode) {
@@ -889,7 +1192,7 @@ const App = {
     },
 
     cycleRotation() {
-        const angles = [0, 90, 180, 270];
+        const angles = (this.orientation === 'landscape') ? [90, 270] : [0, 180];
         const currentIdx = Math.max(0, angles.indexOf(this.rotationAngle));
         const nextAngle = angles[(currentIdx + 1) % angles.length];
         this.setRotation(nextAngle);
@@ -902,7 +1205,6 @@ const App = {
             localStorage.setItem('mxw01_rotation_angle', a);
         } catch (e) {}
 
-        // 90° veya 270° yatay modu, 0° veya 180° dikey modu temsil eder
         if ((a === 90 || a === 270) && this.orientation !== 'landscape') {
             this.orientation = 'landscape';
             try { localStorage.setItem('mxw01_orientation', 'landscape'); } catch (e) {}
@@ -913,35 +1215,6 @@ const App = {
 
         this.updateOrientationUI();
         this.updatePreview();
-    },
-
-    loadLandscapeSample() {
-        const isEn = document.body.classList.contains('en-mode');
-        const msg = isEn 
-            ? "Load sample horizontal shipping parcel template?" 
-            : "Örnek yatay kargo/etiket şablonu yüklensin mi? (Düzenleyici içeriği güncellenecektir)";
-        if (confirm(msg)) {
-            const textarea = document.getElementById('textInput');
-            const now = new Date();
-            const dateStr = now.toLocaleDateString(isEn ? 'en-US' : 'tr-TR');
-            const landscapeTpl = `[C][S:34][W:900]**TRENDYOL HIZLI GÖNDERİ**
-================================================
-| GÖNDERİCİ: MEMONEX 3D | TARİH: ${dateStr} |
-| TAKİP NO: 2646659276574893                |
-------------------------------------------------
-[C][CODE128:2646659276574893|0|0|0|0|1.5]
-[C][S:26][W:900]**2646 6592 7657 4893**
-------------------------------------------------
-| ALICI: Ahmet Yılmaz   | TEL: 0555 123 45 67  |
-| ADRES: Atatürk Mah. Cumhuriyet Cad. No:12 D:4|
-================================================`;
-            if (textarea) {
-                textarea.value = landscapeTpl;
-                this.setOrientation('landscape');
-                this.saveDraft();
-                this.updatePreview();
-            }
-        }
     },
 
     getEffectiveRotation() {
@@ -967,27 +1240,24 @@ const App = {
         if (qPortrait) qPortrait.classList.toggle('active', !isLandscape);
         if (qLandscape) qLandscape.classList.toggle('active', isLandscape);
 
-        // Hızlı rotasyon etiketi
-        const qAngleLabel = document.getElementById('quickAngleLabel');
-        if (qAngleLabel) {
-            qAngleLabel.innerText = `${this.rotationAngle}°`;
-        }
+        // Canvas wrapper'a yatay mod sınıfı ver (sağ kenarda dikey yırtma efekti için)
+        const wrapper = document.getElementById('canvasWrapper');
+        if (wrapper) wrapper.classList.toggle('is-landscape', isLandscape);
 
-        // Yatay ayar paneli görünürlüğü
+        // Yatay ve dikey ayar panelleri görünürlüğü
         const lGroup = document.getElementById('landscapeSettingsGroup');
-        if (lGroup) {
-            if (isLandscape) {
-                lGroup.classList.remove('hidden');
-            } else {
-                lGroup.classList.add('hidden');
-            }
-        }
+        const pGroup = document.getElementById('portraitSettingsGroup');
+        if (lGroup) lGroup.classList.toggle('hidden', !isLandscape);
+        if (pGroup) pGroup.classList.toggle('hidden', isLandscape);
 
         // Değer etiketleri
         const vWidth = document.getElementById('vLandscapeWidth');
         const vCm = document.getElementById('vLandscapeCm');
         if (vWidth) vWidth.innerText = this.landscapeWidth;
         if (vCm) vCm.innerText = ((this.landscapeWidth / 8) / 10).toFixed(1);
+
+        const slider = document.getElementById('landscapeWidth');
+        if (slider) slider.value = this.landscapeWidth;
 
         // Preset butonları aktifliği
         document.querySelectorAll('.landscape-presets .btn-preset').forEach(btn => {
@@ -1001,12 +1271,7 @@ const App = {
             btn.classList.toggle('active', btnAngle === this.rotationAngle);
         });
 
-        // Kağıt yırtma kenarı genişliğini canvas ile senkronize et
-        const tearEdge = document.querySelector('.paper-tear-edge');
-        if (tearEdge) {
-            const tearWidth = isLandscape ? `${this.landscapeWidth}px` : '384px';
-            tearEdge.style.setProperty('--tear-width', tearWidth);
-        }
+        this.updateViewModeUI();
     },
 
     updatePaperMetrics() {
@@ -1032,7 +1297,7 @@ const App = {
             if (isLandscape) {
                 mDots.innerText = isEn ? `${w}×${h} px (Landscape)` : `${w}×${h} px (Yatay)`;
             } else {
-                mDots.innerText = `${w}×${h} px`;
+                mDots.innerText = `${w}×${h} px (Dikey)`;
             }
         }
     },
@@ -1077,22 +1342,7 @@ const App = {
     resetDefaultTemplate() {
         const isEn = document.body.classList.contains('en-mode');
         if (confirm(isEn ? "Reset to default receipt template?" : "Varsayılan fiş şablonuna dönmek istiyor musunuz?")) {
-            const textarea = document.getElementById('textInput');
-            const defaultTpl = `[C][S:38][W:900]**MEMONEX 3D**
-================================
-* Alışverişiniz için teşekkürler!
-* Memnun kaldıysanız değerli
-* yorumlarınızı paylaşmanız
-* bizi çok mutlu eder. ❤︎
---------------------------------
-[C][S:28]- 0531 208 48 97 -
-[C][QR:memonex3d.com|0|0|0|0|0.6]
-[C][S:20]memonex3d.com`;
-            if (textarea) {
-                textarea.value = defaultTpl;
-                this.saveDraft();
-                this.updatePreview();
-            }
+            this.applyTemplate('portrait_default');
         }
     },
 

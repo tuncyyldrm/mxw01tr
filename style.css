@@ -470,12 +470,22 @@ select, button, .tab-btn {
 
 #mainCanvas { 
     background: white; 
-    max-width: 100%; 
     box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
     display: block;
+    transition: max-width 0.2s ease;
 }
 
-/* Termal Kağıt Kesim Tırtığı Efekti */
+.canvas-wrapper.fit-mode #mainCanvas {
+    max-width: 100%;
+    height: auto;
+}
+
+.canvas-wrapper.actual-mode #mainCanvas {
+    max-width: none;
+    height: auto;
+}
+
+/* Termal Kağıt Kesim Tırtığı Efekti - Dikey Mod (Altta) */
 .paper-tear-edge {
     width: 100%;
     max-width: var(--tear-width, 384px);
@@ -486,6 +496,61 @@ select, button, .tab-btn {
     margin-top: -1px;
     filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
     transition: max-width 0.2s ease;
+}
+
+/* Yatay Modda Kesim Tırtığı (Sağ Kenarda) */
+.canvas-wrapper.is-landscape {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+}
+
+.canvas-wrapper.is-landscape .paper-tear-edge {
+    width: 8px;
+    height: 384px;
+    max-height: 100%;
+    background: linear-gradient(45deg, white 4px, transparent 0), linear-gradient(-45deg, white 4px, transparent 0);
+    background-size: 8px 8px;
+    background-repeat: repeat-y;
+    margin-top: 0;
+    margin-left: -1px;
+}
+
+/* Taşan İçerik Uyarı Bandı */
+.overflow-warning-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 12px;
+    background: #fff3cd;
+    border: 1px solid #ffeeba;
+    border-radius: 6px;
+    color: #856404;
+    font-size: 11px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.btn-autofit-pill {
+    padding: 3px 8px;
+    background: #28a745;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    white-space: nowrap;
+}
+
+.btn-autofit-pill:hover {
+    background: #218838;
+}
+
+.portrait-settings {
+    margin-bottom: 15px;
 }
 
 /* Çıktı Formatı Ayar Butonları */
