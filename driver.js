@@ -231,12 +231,21 @@ class LefuxinDriver {
         }
     }
 
-    async feedPaper(lines = 64) {
-        if (!this.ctrl) return;
-        const l = Math.max(8, Math.min(800, parseInt(lines) || 64));
+    async feedPaper(lines = 48) {
+        if (!this.ctrl || !this.data) return;
+        const h = Math.max(16, Math.min(200, parseInt(lines) || 48));
         try {
-            await this._send(0xBD, [l & 0xFF, (l >> 8) & 0xFF]);
-            await new Promise(r => setTimeout(r, 120));
+            // Lefuxin protokolünde güvenli ilerletme: boş (0x00) raster satırları gönder
+            await this._send(0xB1, [0x00]);
+            await this._send(0xA9, [h & 0xFF, (h >> 8) & 0xFF, 48, 0]);
+            const totalBytes = h * 48;
+            const chunk = new Uint8Array(20); // 20 bayt sıfır
+            for (let i = 0; i < totalBytes; i += 20) {
+                const len = Math.min(20, totalBytes - i);
+                await this.data.writeValueWithoutResponse(len === 20 ? chunk : new Uint8Array(len));
+                if (i % 200 === 0) await new Promise(r => setTimeout(r, 15));
+            }
+            await this._send(0xAD, [0x00]);
         } catch (e) {
             console.warn("Lefuxin kağıt ilerletme hatası:", e);
         }
@@ -245,12 +254,6 @@ class LefuxinDriver {
     async print(bytes, h) {
         if (!this.ctrl || !this.data) throw new Error("Yazıcıya bağlantı yok.");
         
-        // 0. Koyu ve net baskı için termal yoğunluğu ayarla (0xA3)
-        try {
-            await this._send(0xA3, [0x02]);
-            await new Promise(r => setTimeout(r, 25));
-        } catch (eDensity) {}
-
         // 1. Baskı başlatma / durum hazırlığı
         await this._send(0xB1, [0x00]); 
         
@@ -263,13 +266,8 @@ class LefuxinDriver {
             if (i % 200 === 0) await new Promise(r => setTimeout(r, 20));
         }
         
-        // 4. Veri aktarımını tamamla
+        // 4. Veri aktarımını tamamla ve kağıdı ilerlet
         await this._send(0xAD, [0x00]);
-
-        // 5. Baskı sonrasında çıktıyı kesici bıçak hizasına ilerlet (64 satır feed)
-        try {
-            await this.feedPaper(64);
-        } catch (eFeed) {}
 
         // Baskı sonrası güncel pil durumunu tazele
         setTimeout(() => this.updateStatus(), 1200);
@@ -810,15 +808,13 @@ class UniversalPrinterDriver {
             // Servislere ve cihaz adına göre doğru alt sürücüyü seç
             if (serviceUUIDs.includes('0000ae30-0000-1000-8000-00805f9b34fb') ||
                 serviceUUIDs.includes('0000af30-0000-1000-8000-00805f9b34fb') ||
-                serviceUUIDs.includes('0000ae00-0000-1000-8000-00805f9b34fb')) {
+                serviceUUIDs.includes('0000ae00-0000-1000-8000-00805f9b34fb') ||
+                devName.includes('mx') || devName.includes('lefuxin')) {
                 this.driver = this.drivers.lefuxin;
                 console.log("Algılanan protokol: Lefuxin / MXW01 (0x2221)");
-            } else if (serviceUUIDs.includes('0000ff00-0000-1000-8000-00805f9b34fb') ||
-                       serviceUUIDs.includes('0000fee7-0000-1000-8000-00805f9b34fb') ||
-                       serviceUUIDs.includes('0000fff0-0000-1000-8000-00805f9b34fb') ||
-                       devName.includes('c9') || devName.includes('c15') || devName.includes('c17') ||
-                       devName.includes('c19') || devName.includes('c21') || devName.includes('gb') ||
-                       devName.includes('walk') || devName.includes('fun') || devName.includes('cat')) {
+            } else if (devName.includes('c9') || devName.includes('c15') || devName.includes('c17') ||
+                       devName.includes('c19') || devName.includes('c21') || devName.includes('gb01') ||
+                       devName.includes('walkprint') || devName.includes('funprint')) {
                 this.driver = this.drivers.cat_gb01;
                 console.log("Algılanan protokol: Kedi Mini C9 / GB01 / WalkPrint (0x5178)");
             } else if (serviceUUIDs.includes('49535343-fe7d-4ae5-8fa9-9fafd205e455') ||
@@ -830,8 +826,9 @@ class UniversalPrinterDriver {
                 this.driver = this.drivers.bleserial;
                 console.log("Algılanan protokol: BLE Serial");
             } else {
-                // Varsayılan: Kedi Mini C9 veya Lefuxin dene
-                this.driver = this.drivers.cat_gb01;
+                // Güvenli varsayılan: MXW01 / Lefuxin
+                this.driver = this.drivers.lefuxin;
+                console.log("Varsayılan protokol: Lefuxin / MXW01");
             }
             
             // Kullanıcıya tekrar pencere açmadan mevcut bağlantıyı alt sürücüye aktar
@@ -922,17 +919,17 @@ class FakeDriver {
 }
 
 const PrinterRegistry = {
+    "mxw01": { 
+        name: "🐱 MXW01 / Lefuxin (Standart / Varsayılan)", 
+        driver: new LefuxinDriver() 
+    },
     "universal": { 
-        name: "🐾 Otomatik Algılama (Kedi Mini / Evrensel - Önerilen)", 
+        name: "🐾 Otomatik Algılama (Evrensel)", 
         driver: new UniversalPrinterDriver() 
     },
     "cat_gb01": { 
-        name: "🐱 Kedi Mini C9 / C15 / WalkPrint (0x5178)", 
+        name: "🐱 C9 / WalkPrint / FunPrint (0x5178)", 
         driver: new CatPrinterDriver() 
-    },
-    "mxw01": { 
-        name: "🐱 Kedi Mini / MXW01 / Lefuxin (0x2221)", 
-        driver: new LefuxinDriver() 
     },
     "escpos": { 
         name: "🖨️ XPrinter / Sunmi / Bixolon (ESC/POS)", 
