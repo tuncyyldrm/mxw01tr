@@ -55,7 +55,8 @@
                 <span class="seo-keywords lang-tr">— çevrimiçi termal baskı</span>
                 <span class="seo-keywords lang-en">— online thermal printing</span>
             </h1>
-            <span class="version-badge">v1.0 Beta</span>
+            <span class="version-badge">v1.1</span>
+            <span class="cat-compat-badge" title="Tüm Kedi Kulaklı Mini Cep Yazıcıları (C9/C15/C21/GB01/WalkPrint/FunPrint) ile Tam Uyumlu">🐱 Kedi Mini Uyumlu</span>
         </div>
         
         <div class="header-right">
@@ -156,6 +157,12 @@
                     </select>
                     <select class="tool-select" onchange="App.applyTemplate(this.value); this.selectedIndex=0;" title="Hazır Şablonlar / Templates" style="font-weight: 600; color: #007bff; border-color: #b6d4fe;">
                         <option value="" disabled selected>📋 Şablonlar</option>
+                        <optgroup label="🐱 Kedi Mini Özel Şablonları (57mm)">
+                            <option value="cat_photo_note">📸 Kedi Mini Foto & Not (Hey, What's Up)</option>
+                            <option value="cat_todo">📋 Günlük Yapılacaklar (To-Do List)</option>
+                            <option value="cat_study">📝 Ders & Sınav Notu (Formüller)</option>
+                            <option value="cat_shopping">🛒 Alışveriş & İhtiyaç Listesi</option>
+                        </optgroup>
                         <optgroup label="📄 Dikey Şablonlar (384px)">
                             <option value="portrait_default">⭐ Orijinal MEMONEX Fişi (Varsayılan)</option>
                             <option value="portrait_pos">🧾 Detaylı Satış & POS Fişi</option>
@@ -271,7 +278,10 @@
                 <label><span class="lang-tr">Kopya</span><span class="lang-en">Copies</span></label>
                 <input type="number" id="printCopies" min="1" max="10" value="1">
             </div>
-            <button id="printBtn" class="btn-print" disabled><span class="lang-tr">YAZDIR (Ctrl+Enter)</span><span class="lang-en">PRINT (Ctrl+Enter)</span></button>
+            <button id="printBtn" class="btn-print" disabled><span class="lang-tr">🖨️ YAZDIR (Ctrl+Enter)</span><span class="lang-en">🖨️ PRINT (Ctrl+Enter)</span></button>
+            <button id="feedBtn" type="button" class="btn-feed" onclick="App.feedPaper(64)" disabled title="Kâğıdı İlerlet (Bıçak Payı) / Feed Paper">
+                📄 <span class="lang-tr">İlerlet</span><span class="lang-en">Feed</span>
+            </button>
         </div>
         <div id="printStatus" class="status-sub"></div>
     </section>

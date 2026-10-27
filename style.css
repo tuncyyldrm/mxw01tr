@@ -45,6 +45,19 @@ body {
     border-color: #0056b3;
 }
 
+.cat-compat-badge {
+    font-size: 0.72rem;
+    background: #ffe3ec;
+    color: #d63384;
+    border: 1px solid #f8d7da;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
 .version-badge {
     font-size: 0.7rem;
     background: #e8e8ed;
@@ -714,6 +727,40 @@ select, button, .tab-btn {
     border: 1px solid #ced4da;
     border-radius: 4px;
 }
+.btn-feed {
+    background: #495057;
+    color: #ffffff;
+    font-size: 0.95rem;
+    height: 56px;
+    padding: 0 16px;
+    width: auto;
+    min-width: 85px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s, transform 0.1s;
+    margin-bottom: 0 !important;
+}
+
+.btn-feed:hover:not(:disabled) {
+    background: #343a40;
+}
+
+.btn-feed:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.btn-feed:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 .print-control-row .btn-print {
     flex: 1;
     margin-bottom: 0 !important;
@@ -839,6 +886,11 @@ select#driverSelect {
         padding: 6px;
         border-radius: 8px;
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .btn-feed {
+        height: 60px;
+        font-size: 1.05rem;
     }
 
     .btn-print {

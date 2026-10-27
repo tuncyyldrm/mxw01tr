@@ -93,6 +93,8 @@ const App = {
         }
         const printBtn = document.getElementById('printBtn');
         if (printBtn) printBtn.disabled = true;
+        const feedBtn = document.getElementById('feedBtn');
+        if (feedBtn) feedBtn.disabled = true;
         const printStatus = document.getElementById('printStatus');
         if (printStatus) printStatus.innerText = "";
         const badge = document.getElementById('printerBadge');
@@ -155,6 +157,8 @@ const App = {
                     const name = await this.currentDriver.connect();
                     document.getElementById('status').innerText = "🟢 " + name;
                     document.getElementById('printBtn').disabled = false;
+                    const feedBtn = document.getElementById('feedBtn');
+                    if (feedBtn) feedBtn.disabled = false;
                     if (typeof this.currentDriver.updateStatus === 'function') {
                         setTimeout(() => this.currentDriver.updateStatus(), 400);
                     }
@@ -962,6 +966,97 @@ const App = {
         const timeStr = `${pad(now.getHours())}:${pad(now.getMinutes())}`;
 
         const templates = {
+            cat_photo_note: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 20,
+                lineSpacing: 1.15,
+                bottomMargin: 25,
+                text: `[C][S:34][W:900]🐾 **HEY, WHAT'S UP!** 🐾
+================================
+[C][S:20]Everything is going well! ✨
+--------------------------------
+[C][S:24][W:900]**GÜNÜN NOTU**
+* Bugün harika bir gün olacak!
+* Kendine inan ve gülümse 😊
+* Bol su içmeyi unutma 💧
+* Hayallerinin peşinden git! ✨
+--------------------------------
+[C][S:20]🐱 "Miyav! Başarı seninle!"
+[C][QR:https://instagram.com|0|0|0|0|0.55]
+[C][S:16]Tarih: ${dateStr} • Saat: ${timeStr}
+================================`
+            },
+            cat_todo: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.2,
+                bottomMargin: 25,
+                text: `[C][S:34][W:900]🐱 **GÜNLÜK GÖREVLER** 🐱
+================================
+[C][S:16]Tarih: ${dateStr} | Hedef: %100 Odak
+--------------------------------
+[ ] Sabah yürüyüşü & meditasyon
+[ ] Önemli e-postaları yanıtla
+[ ] Proje raporunu tamamla
+[ ] 20 sayfa kitap oku
+[ ] 2 litre su tüket
+[ ] Gün sonu değerlendirmesi
+--------------------------------
+[C][S:22][W:900]**"Küçük adımlar,**
+[C][S:22][W:900]**büyük başarılar getirir!"**
+================================
+[C][S:14]🐾 Cat Pocket Printer • ${timeStr}`
+            },
+            cat_study: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.15,
+                bottomMargin: 25,
+                text: `[C][S:32][W:900]📚 **DERS & ÇALIŞMA NOTU** 📚
+================================
+[C][S:18]Konu: Formüller & Özet Bilgiler
+--------------------------------
+[W:900]**1. TEMEL FORMÜLLER:**
+• Hipotenüs: a² + b² = c²
+• Hız = Yol / Zaman (v = x / t)
+• Kuvvet = Kütle × İvme (F = m·a)
+• Enerji = Kütle × c² (E = m·c²)
+--------------------------------
+[W:900]**2. DİKKAT EDİLECEKLER:**
+! Birim dönüşümlerini unutma
+! Eksi işaretlerine dikkat et
+! Süreyi iyi yönet
+================================
+[C][S:18]⭐ Sınavda Başarılar! ⭐`
+            },
+            cat_shopping: {
+                orientation: 'portrait',
+                width: 384,
+                rotation: 0,
+                fontSize: 18,
+                lineSpacing: 1.2,
+                bottomMargin: 25,
+                text: `[C][S:34][W:900]🛒 **ALIŞVERİŞ LİSTESİ** 🛒
+================================
+[C][S:16]Tarih: ${dateStr} • ${timeStr}
+--------------------------------
+[ ] Süt & Peynir (Kahvaltılık)
+[ ] Yumurta (Organik 15'li)
+[ ] Ekmek & Yulaf Ezmesi
+[ ] Elma, Muz & Çilek
+[ ] Domates, Salatalık, Yeşillik
+[ ] Termal Kâğıt Rulosu (57mm)
+[ ] Kedi Maması & Ödül Maması 🐱
+--------------------------------
+[C][S:18]Afiyet olsun & İyi alışverişler! ❤︎
+================================`
+            },
             portrait_default: {
                 orientation: 'portrait',
                 width: 384,
@@ -1367,6 +1462,33 @@ Paket: 1 Koli / 2.4 Desi
         const isEn = document.body.classList.contains('en-mode');
         if (confirm(isEn ? "Reset to default receipt template?" : "Varsayılan fiş şablonuna dönmek istiyor musunuz?")) {
             this.applyTemplate('portrait_default');
+        }
+    },
+
+    async feedPaper(lines = 64) {
+        if (!this.currentDriver) return;
+        const feedBtn = document.getElementById('feedBtn');
+        const isEn = document.body.classList.contains('en-mode');
+        const statusEl = document.getElementById('printStatus');
+        try {
+            if (feedBtn) feedBtn.disabled = true;
+            if (statusEl) statusEl.innerText = isEn ? "Feeding paper..." : "Kâğıt ilerletiliyor...";
+
+            if (typeof this.currentDriver.feedPaper === 'function') {
+                await this.currentDriver.feedPaper(lines);
+            }
+
+            if (statusEl) statusEl.innerText = isEn ? "Ready" : "Hazır";
+            setTimeout(() => {
+                if (statusEl && (statusEl.innerText.includes('Kâğıt') || statusEl.innerText === 'Ready' || statusEl.innerText === 'Hazır')) {
+                    statusEl.innerText = "";
+                }
+            }, 1800);
+        } catch (err) {
+            console.error("Feed hatası:", err);
+            if (statusEl) statusEl.innerText = isEn ? "Feed error!" : "İlerletme hatası!";
+        } finally {
+            if (feedBtn) feedBtn.disabled = false;
         }
     },
 
