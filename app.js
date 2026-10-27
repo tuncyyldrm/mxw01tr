@@ -181,11 +181,15 @@ const App = {
                     const isEn = document.body.classList.contains('en-mode');
                     printBtn.disabled = true;
 
+                    const origBtnHTML = printBtn.innerHTML;
+                    printBtn.classList.add('is-printing');
+
                     for (let c = 1; c <= copies; c++) {
                         const statusMsg = copies > 1
                             ? (isEn ? `Printing... (Copy ${c}/${copies})` : `Yazdırılıyor... (Kopya ${c}/${copies})`)
                             : (isEn ? "Printing..." : "Yazdırılıyor...");
                         document.getElementById('printStatus').innerText = statusMsg;
+                        printBtn.innerHTML = `⏳ ${statusMsg}`;
 
                         await this.currentDriver.print(bytes, height);
 
@@ -194,11 +198,23 @@ const App = {
                         }
                     }
 
-                    document.getElementById('printStatus').innerText = isEn ? "Ready to print" : "Yazdırmaya hazır";
-                    printBtn.disabled = false;
+                    printBtn.innerHTML = isEn ? "✅ Printed!" : "✅ Yazdırıldı!";
+                    document.getElementById('printStatus').innerText = isEn ? "Print complete" : "Yazdırma tamamlandı";
+                    
+                    setTimeout(() => {
+                        printBtn.innerHTML = origBtnHTML;
+                        printBtn.disabled = false;
+                        printBtn.classList.remove('is-printing');
+                        const st = document.getElementById('printStatus');
+                        if (st && (st.innerText === 'Print complete' || st.innerText === 'Yazdırma tamamlandı')) {
+                            st.innerText = "";
+                        }
+                    }, 1600);
                 } catch (e) {
                     alert("Yazdırma hatası: " + e.message);
                     printBtn.disabled = false;
+                    printBtn.classList.remove('is-printing');
+                    printBtn.innerHTML = `<span class="lang-tr">🖨️ YAZDIR (Ctrl+Enter)</span><span class="lang-en">🖨️ PRINT (Ctrl+Enter)</span>`;
                     document.getElementById('printStatus').innerText = "";
                 }
             };
@@ -248,6 +264,9 @@ const App = {
 
         // Klavye Kısayolları (Ctrl+Enter: Yazdır, Ctrl+B: Kalın, Ctrl+I: İtalik)
         window.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                App.closeTemplateModal();
+            }
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 const pBtn = document.getElementById('printBtn');
@@ -954,12 +973,21 @@ const App = {
         }, 60);
     },
 
-    applyTemplate(key) {
+    applyTemplate(key, skipConfirm = false) {
         if (!key) return;
         const textarea = document.getElementById('textInput');
         if (!textarea) return;
 
         const isEn = document.body.classList.contains('en-mode');
+        const currentVal = (textarea.value || '').trim();
+
+        // Güvenlik denetimi: Düzenleyicide mevcut içerik varsa üzerine yazmadan önce sor
+        if (!skipConfirm && currentVal.length > 25) {
+            const msg = isEn 
+                ? "Your current receipt/note text will be replaced with this template. Continue?" 
+                : "Mevcut fiş/not içeriğiniz bu şablonla değiştirilecek. Onaylıyor musunuz?";
+            if (!confirm(msg)) return;
+        }
         const now = new Date();
         const pad = (n) => String(n).padStart(2, '0');
         const dateStr = `${pad(now.getDate())}.${pad(now.getMonth()+1)}.${now.getFullYear()}`;
@@ -1458,6 +1486,21 @@ Paket: 1 Koli / 2.4 Desi
         }
     },
 
+    openTemplateModal() {
+        const modal = document.getElementById('templateModal');
+        if (modal) modal.classList.remove('hidden');
+    },
+
+    closeTemplateModal() {
+        const modal = document.getElementById('templateModal');
+        if (modal) modal.classList.add('hidden');
+    },
+
+    selectTemplateFromModal(key) {
+        this.closeTemplateModal();
+        this.applyTemplate(key, false);
+    },
+
     resetDefaultTemplate() {
         const isEn = document.body.classList.contains('en-mode');
         if (confirm(isEn ? "Reset to default receipt template?" : "Varsayılan fiş şablonuna dönmek istiyor musunuz?")) {
@@ -1465,30 +1508,39 @@ Paket: 1 Koli / 2.4 Desi
         }
     },
 
-    async feedPaper(lines = 64) {
+    async feedPaper(lines = 48) {
         if (!this.currentDriver) return;
         const feedBtn = document.getElementById('feedBtn');
         const isEn = document.body.classList.contains('en-mode');
         const statusEl = document.getElementById('printStatus');
+        const origBtnText = feedBtn ? feedBtn.innerHTML : '';
         try {
-            if (feedBtn) feedBtn.disabled = true;
+            if (feedBtn) {
+                feedBtn.disabled = true;
+                feedBtn.innerHTML = isEn ? "⏳ Feeding..." : "⏳ İlerliyor...";
+            }
             if (statusEl) statusEl.innerText = isEn ? "Feeding paper..." : "Kâğıt ilerletiliyor...";
 
             if (typeof this.currentDriver.feedPaper === 'function') {
                 await this.currentDriver.feedPaper(lines);
             }
 
-            if (statusEl) statusEl.innerText = isEn ? "Ready" : "Hazır";
+            if (feedBtn) feedBtn.innerHTML = isEn ? "✅ Done" : "✅ İlerletildi";
+            if (statusEl) statusEl.innerText = "";
+            
             setTimeout(() => {
-                if (statusEl && (statusEl.innerText.includes('Kâğıt') || statusEl.innerText === 'Ready' || statusEl.innerText === 'Hazır')) {
-                    statusEl.innerText = "";
+                if (feedBtn) {
+                    feedBtn.innerHTML = origBtnText;
+                    feedBtn.disabled = false;
                 }
-            }, 1800);
+            }, 1200);
         } catch (err) {
             console.error("Feed hatası:", err);
             if (statusEl) statusEl.innerText = isEn ? "Feed error!" : "İlerletme hatası!";
-        } finally {
-            if (feedBtn) feedBtn.disabled = false;
+            if (feedBtn) {
+                feedBtn.innerHTML = origBtnText;
+                feedBtn.disabled = false;
+            }
         }
     },
 

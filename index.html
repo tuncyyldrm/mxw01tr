@@ -156,26 +156,14 @@
                         <option value="...">Kesikli Çizgi (...)</option>
                     </select>
                     <select class="tool-select" onchange="App.applyTemplate(this.value); this.selectedIndex=0;" title="Hazır Şablonlar / Templates" style="font-weight: 600; color: #007bff; border-color: #b6d4fe;">
-                        <option value="" disabled selected>📋 Şablonlar</option>
-                        <optgroup label="🐱 Kedi Mini Özel Şablonları (57mm)">
-                            <option value="cat_photo_note">📸 Kedi Mini Foto & Not (Hey, What's Up)</option>
-                            <option value="cat_todo">📋 Günlük Yapılacaklar (To-Do List)</option>
-                            <option value="cat_study">📝 Ders & Sınav Notu (Formüller)</option>
-                            <option value="cat_shopping">🛒 Alışveriş & İhtiyaç Listesi</option>
-                        </optgroup>
-                        <optgroup label="📄 Dikey Şablonlar (384px)">
-                            <option value="portrait_default">⭐ Orijinal MEMONEX Fişi (Varsayılan)</option>
-                            <option value="portrait_pos">🧾 Detaylı Satış & POS Fişi</option>
-                            <option value="portrait_cargo">📦 Kargo Barkod Fişi</option>
-                            <option value="portrait_cafe">☕ Kafe / Adisyon Fişi</option>
-                        </optgroup>
-                        <optgroup label="🔄 Yatay Şablonlar (Geniş)">
-                            <option value="landscape_cargo">📦 Yatay Kargo Sevk Etiketi</option>
-                            <option value="landscape_table">📊 Yatay Ürün & Fiyat Tablosu</option>
-                            <option value="landscape_shelf">🏷️ Yatay Raf & Ürün Barkodu</option>
-                            <option value="landscape_ticket">🎫 Yatay Etkinlik Bileti</option>
-                        </optgroup>
+                        <option value="" disabled selected>📋 Şablonlar (5 Temel Düzen)</option>
+                        <option value="portrait_default">⭐ 1. Memonex Satış Fişi (Varsayılan)</option>
+                        <option value="portrait_cargo">📦 2. Kargo Sevk & Barkod Fişi</option>
+                        <option value="cat_todo">📋 3. Günlük Yapılacaklar (To-Do List)</option>
+                        <option value="cat_photo_note">🐾 4. Günün Notu & Foto (Cat Mini)</option>
+                        <option value="landscape_table">🔄 5. Yatay Geniş Tablo & Etiket</option>
                     </select>
+                    <button type="button" class="tool-btn btn-gallery-trigger" onclick="App.openTemplateModal()" title="Görsel Şablon Galerisi (Visual Gallery)">🎨 <span class="lang-tr">Galeri</span><span class="lang-en">Gallery</span></button>
                 </div>
                 <div class="toolbar-separator"></div>
                 <div class="toolbar-group">
@@ -422,6 +410,102 @@
         </ul>
     </div>
 </footer>
+
+
+<!-- Şablon Galerisi Modalı (5 Temel Kullanışlı Şablon) -->
+<div id="templateModal" class="tpl-modal hidden" onclick="if(event.target===this) App.closeTemplateModal()">
+    <div class="tpl-modal-content card">
+        <div class="tpl-modal-header">
+            <div class="tpl-modal-title">
+                <h3>📋 <span class="lang-tr">Hazır Baskı Şablonları</span><span class="lang-en">Print Templates</span></h3>
+                <p class="tpl-modal-desc lang-tr">Kafa karışıklığını önlemek için en pratik 5 ana düzen seçildi</p>
+                <p class="tpl-modal-desc lang-en">Curated 5 essential layouts for your pocket printer</p>
+            </div>
+            <button type="button" class="btn-close-modal" onclick="App.closeTemplateModal()" title="Kapat">✕</button>
+        </div>
+
+        <div class="tpl-cards-grid">
+            <!-- 1. Memonex Satış Fişi -->
+            <div class="tpl-card" onclick="App.selectTemplateFromModal('portrait_default')">
+                <div class="tpl-card-top">
+                    <span class="tpl-card-icon">🧾</span>
+                    <span class="tpl-badge badge-primary">⭐ Standart Fiş</span>
+                </div>
+                <h4>Memonex Müşteri Fişi</h4>
+                <p class="tpl-card-info lang-tr">Müşteri teşekkür mesajı, iletişim numarası ve memonex3d.com QR kodu içeren orijinal fiş.</p>
+                <p class="tpl-card-info lang-en">Customer thank-you receipt with phone and website QR code.</p>
+                <div class="tpl-card-footer">
+                    <span class="tpl-tag">📄 57mm Dikey</span>
+                    <button type="button" class="btn-use-tpl">Uygula</button>
+                </div>
+            </div>
+
+            <!-- 2. Kargo Sevk Etiketi -->
+            <div class="tpl-card" onclick="App.selectTemplateFromModal('portrait_cargo')">
+                <div class="tpl-card-top">
+                    <span class="tpl-card-icon">📦</span>
+                    <span class="tpl-badge badge-warning">Barkodlu</span>
+                </div>
+                <h4>Kargo Sevk & Barkod Fişi</h4>
+                <p class="tpl-card-info lang-tr">Alıcı & gönderici bilgileri, kargo takip numarası, taranabilir Code128 barkod ve takip QR kodu.</p>
+                <p class="tpl-card-info lang-en">Shipping label with sender, receiver, barcode and tracking QR.</p>
+                <div class="tpl-card-footer">
+                    <span class="tpl-tag">📄 57mm Dikey</span>
+                    <button type="button" class="btn-use-tpl">Uygula</button>
+                </div>
+            </div>
+
+            <!-- 3. Günlük Yapılacaklar (To-Do) -->
+            <div class="tpl-card" onclick="App.selectTemplateFromModal('cat_todo')">
+                <div class="tpl-card-top">
+                    <span class="tpl-card-icon">📋</span>
+                    <span class="tpl-badge badge-success">Görev Listesi</span>
+                </div>
+                <h4>Günlük Yapılacaklar (To-Do)</h4>
+                <p class="tpl-card-info lang-tr">Kutucuklu görev listesi ([ ]), günün tarihi, saat bilgisi ve motivasyon alıntısı.</p>
+                <p class="tpl-card-info lang-en">Checklist with boxes, date, time and motivational quote.</p>
+                <div class="tpl-card-footer">
+                    <span class="tpl-tag">📄 57mm Dikey</span>
+                    <button type="button" class="btn-use-tpl">Uygula</button>
+                </div>
+            </div>
+
+            <!-- 4. Günün Notu & Foto (Cat Mini) -->
+            <div class="tpl-card" onclick="App.selectTemplateFromModal('cat_photo_note')">
+                <div class="tpl-card-top">
+                    <span class="tpl-card-icon">🐾</span>
+                    <span class="tpl-badge badge-cat">🐱 Kedi Mini</span>
+                </div>
+                <h4>Günün Notu & Fotoğraf</h4>
+                <p class="tpl-card-info lang-tr">"HEY, WHAT'S UP!" başlığı, günün sevimli kedi notu, tavsiyeler ve sosyal medya QR kodu.</p>
+                <p class="tpl-card-info lang-en">"HEY, WHAT'S UP!" header with cute note and social QR.</p>
+                <div class="tpl-card-footer">
+                    <span class="tpl-tag">📄 57mm Dikey</span>
+                    <button type="button" class="btn-use-tpl">Uygula</button>
+                </div>
+            </div>
+
+            <!-- 5. Yatay Geniş Tablo -->
+            <div class="tpl-card" onclick="App.selectTemplateFromModal('landscape_table')">
+                <div class="tpl-card-top">
+                    <span class="tpl-card-icon">🔄</span>
+                    <span class="tpl-badge badge-info">Geniş Format</span>
+                </div>
+                <h4>Yatay Ürün & Fiyat Tablosu</h4>
+                <p class="tpl-card-info lang-tr">90° döndürülmüş geniş format: çok sütunlu ürün, adet, birim fiyat ve toplam tutar tablosu.</p>
+                <p class="tpl-card-info lang-en">Landscape multi-column product, quantity & price table.</p>
+                <div class="tpl-card-footer">
+                    <span class="tpl-tag">🔄 Yatay 90°</span>
+                    <button type="button" class="btn-use-tpl">Uygula</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="tpl-modal-footer">
+            <button type="button" class="btn-modal-cancel" onclick="App.closeTemplateModal()">✕ <span class="lang-tr">Kapat</span><span class="lang-en">Close</span></button>
+        </div>
+    </div>
+</div>
 
 <script src="driver.js"></script>
 <script src="renderer.js"></script>
